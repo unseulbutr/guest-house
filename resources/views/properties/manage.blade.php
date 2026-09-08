@@ -76,9 +76,20 @@
                                     Rp {{ number_format($property->price_per_night, 0, ',', '.') }}
                                     <span class="text-xs font-normal text-gray-400">/malam</span>
                                 </span>
-                                <a href="{{ route('mitra.properties.edit', $property) }}" class="text-xs font-semibold text-brand-blue hover:underline">
-                                    Kelola →
-                                </a>
+
+                                <div class="flex items-center gap-3">
+                                    <a href="{{ route('mitra.properties.edit', $property) }}" class="text-xs font-semibold text-brand-blue hover:underline">
+                                        Kelola →
+                                    </a>
+                                    <form method="POST" action="{{ route('mitra.properties.destroy', $property) }}"
+                                          onsubmit="return confirm('Yakin ingin menghapus properti &quot;{{ $property->name }}&quot;? Tindakan ini tidak bisa dibatalkan.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-xs font-semibold text-red-500 hover:underline">
+                                            Hapus
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>

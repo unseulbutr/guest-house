@@ -32,7 +32,7 @@
     {{-- Anchor: dipakai script sticky buat tahu kapan search bar sampai di atas --}}
     <div id="search-sticky-anchor"></div>
 
-    {{-- ============ SEARCH CARD (tiap field kotak sendiri, ala Traveloka) ============ --}}
+    {{-- ============ SEARCH CARD (satu kartu menyatu + garis pemisah tipis, ala Traveloka) ============ --}}
     {{-- PENTING: sticky cuma aktif dari breakpoint md ke atas (md:sticky). Di mode HP,
          field-nya numpuk vertikal (flex-col, lihat form di bawah) jadi card-nya jauh
          lebih tinggi — kalau tetap sticky di HP, dia bakal nempel di atas layar dan
@@ -42,35 +42,36 @@
     <div id="search-sticky-wrap" class="md:sticky md:top-0 z-30">
     <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
         <form id="search-form" action="{{ route('home') }}" method="GET"
-              class="relative bg-white/90 backdrop-blur-md rounded-xl shadow-floating p-4 flex flex-col md:flex-row items-stretch gap-3">
+              class="relative bg-white/90 backdrop-blur-md rounded-xl shadow-floating flex flex-col md:flex-row items-stretch
+                     divide-y divide-gray-200 md:divide-y-0 md:divide-x md:divide-gray-200">
 
             {{-- Kota / destinasi --}}
-            <div class="flex-[1.4] border border-gray-300 rounded-lg px-4 py-2.5">
-                <label class="block text-[13px] font-bold text-gray-800 mb-1">
+            <div class="flex-[1.4] px-5 py-3">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">
                     City, destination, or hotel name
                 </label>
                 <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5 text-gray-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                     </svg>
                     <input type="text" name="location" placeholder="Mau nginep di mana?"
                            value="{{ request('location') }}"
-                           class="w-full bg-transparent outline-none text-[15px] font-bold text-navy-900 placeholder:font-normal placeholder:text-gray-400">
+                           class="w-full bg-transparent outline-none text-[15px] sm:text-base font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400">
                 </div>
             </div>
 
             {{-- Check-in / Check-out (date range picker) --}}
-            <div class="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 relative" id="date-field">
-                <label class="block text-[13px] font-bold text-gray-800 mb-1">
+            <div class="flex-1 px-5 py-3 relative" id="date-field">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">
                     Check-In &amp; Check-out Dates
                 </label>
                 <button type="button" id="date-trigger"
                         class="w-full flex items-center gap-2 text-left focus:outline-none">
-                    <svg class="w-5 h-5 text-gray-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                     </svg>
-                    <span id="date-display" class="text-[15px] font-bold text-navy-900 truncate">
+                    <span id="date-display" class="text-[15px] sm:text-base font-bold text-gray-900 truncate">
                         Pilih tanggal check-in &amp; check-out
                     </span>
                 </button>
@@ -100,16 +101,16 @@
             </div>
 
             {{-- Guests & Rooms --}}
-            <div class="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 relative" id="guest-field">
-                <label class="block text-[13px] font-bold text-gray-800 mb-1">
+            <div class="flex-1 px-5 py-3 relative" id="guest-field">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">
                     Guests and Rooms
                 </label>
                 <button type="button" id="guest-trigger" class="w-full flex items-center justify-between gap-2 focus:outline-none">
                     <span class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-gray-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                        <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                         </svg>
-                        <span id="guest-display" class="text-[15px] font-bold text-navy-900">2 Adult(s), 0 children, 1 room</span>
+                        <span id="guest-display" class="text-[15px] sm:text-base font-bold text-gray-900">2 Adult(s), 0 children, 1 room</span>
                     </span>
                     <span class="text-gray-400 text-xs">⌄</span>
                 </button>
@@ -135,11 +136,16 @@
                 </div>
             </div>
 
-            {{-- Tombol Search: rounded-lg (bukan pill), tinggi menyesuaikan kotak field --}}
-            <button type="submit"
-                    class="shrink-0 bg-brand-blue hover:bg-blue-700 transition text-white font-bold text-[15px] px-8 rounded-lg whitespace-nowrap flex items-center justify-center gap-2">
-                <span>🔍</span> Search
-            </button>
+            {{-- Tombol Search: pill penuh (rounded-full), ada padding sendiri supaya tidak nempel garis divider --}}
+            <div class="p-3 flex items-center">
+                <button type="submit"
+                        class="w-full md:w-auto shrink-0 bg-brand-blue hover:bg-blue-700 transition text-white font-bold text-[15px] px-8 py-3.5 rounded-full whitespace-nowrap flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    Search
+                </button>
+            </div>
         </form>
     </section>
     </div>

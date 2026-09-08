@@ -126,12 +126,20 @@
                                 </div>
                             </div>
                         @else
+                            {{-- Log In: pill putih/semi-transparan + border biru + ikon, ala Traveloka --}}
                             <button type="button" onclick="openLoginModal()"
-                               class="text-base font-semibold px-5 py-2 rounded-full border {{ $borderBtn }} {{ $textMain }} transition">
+                               class="flex items-center gap-2 text-base font-bold px-5 py-2.5 rounded-full border-2 transition
+                               {{ $transparent
+                                    ? 'bg-white/95 border-white text-brand-blue hover:bg-white'
+                                    : 'bg-white border-brand-blue text-brand-blue hover:bg-blue-50' }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                                </svg>
                                 Log In
                             </button>
+                            {{-- Register: selalu solid biru vivid + tebal, ala tombol "Daftar" Traveloka --}}
                             <button type="button" onclick="openRegisterModal()"
-                               class="{{ $transparent ? 'bg-blue-100 hover:bg-white text-navy-800' : 'bg-brand-blue hover:bg-blue-700 text-white' }} transition text-base font-semibold px-5 py-2 rounded-full">
+                               class="bg-brand-blue hover:bg-blue-700 transition text-white text-base font-bold px-6 py-2.5 rounded-full shadow-sm">
                                 Register
                             </button>
                         @endauth
@@ -254,11 +262,14 @@
                 <div class="border-t border-gray-100 my-2"></div>
                 <div class="flex gap-2 px-2 pt-1">
                     <button type="button" onclick="closeMobileMenuThenOpenLogin()"
-                       class="flex-1 text-center text-sm font-semibold px-4 py-2.5 rounded-full border border-gray-300 hover:bg-gray-50 transition">
+                       class="flex-1 flex items-center justify-center gap-2 text-center text-sm font-bold px-4 py-2.5 rounded-full border-2 border-brand-blue text-brand-blue hover:bg-blue-50 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        </svg>
                         Log In
                     </button>
                     <button type="button" onclick="closeMobileMenuThenOpenRegister()"
-                       class="flex-1 text-center bg-brand-blue hover:bg-blue-700 transition text-white text-sm font-semibold px-4 py-2.5 rounded-full">
+                       class="flex-1 text-center bg-brand-blue hover:bg-blue-700 transition text-white text-sm font-bold px-4 py-2.5 rounded-full">
                         Register
                     </button>
                 </div>

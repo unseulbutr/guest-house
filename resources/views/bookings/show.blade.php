@@ -109,13 +109,13 @@
 
             @role('customer')
                 @if ($booking->payment_status === 'pending' && $booking->status !== 'cancelled')
-                    <div class="bg-white border border-gray-100 rounded-2xl p-6 text-center">
-                        <h3 class="font-bold text-navy-900 mb-1">Bayar via QRIS</h3>
-                        <p class="text-xs text-gray-500 mb-4">Scan QR di bawah dengan aplikasi e-wallet/mobile banking kamu.</p>
-
-                        {{-- Placeholder QR — ganti dengan gambar QR asli dari payment gateway --}}
-                        <div class="w-44 h-44 mx-auto bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-4xl mb-4">
-                            ▦
+                    {{-- QRIS --}}
+                        <div class="w-44 h-44 mx-auto bg-white border border-gray-200 rounded-xl flex items-center justify-center mb-4 p-2">
+                            <img
+                                src="{{ asset('images/qris.png') }}"
+                                alt="QRIS Pembayaran"
+                                class="w-full h-full object-contain"
+                            >
                         </div>
 
                         <div class="text-2xl font-extrabold text-navy-900 mb-4">

@@ -40,7 +40,7 @@
                 <select name="type" class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
                     <option value="guesthouse" {{ old('type', $property->type) === 'guesthouse' ? 'selected' : '' }}>Guest House</option>
                     <option value="kost_harian" {{ old('type', $property->type) === 'kost_harian' ? 'selected' : '' }}>Kost Harian</option>
-                    <option value="kost_harian" {{ old('type', $property->type) === 'villa' ? 'selected' : '' }}>Villa</option>
+                    <option value="villa" {{ old('type', $property->type) === 'villa' ? 'selected' : '' }}>Villa</option>
                 </select>
             </div>
 
