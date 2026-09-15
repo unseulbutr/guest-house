@@ -54,19 +54,29 @@
 </head>
 <body class="bg-gradient-to-b from-blue-50/60 via-white to-white text-gray-800 antialiased">
 
-    @include('partials.navbar')
+  @php
+    $dashboardLayout = trim(
+        $__env->yieldContent('dashboard_layout', 'false')
+    ) === 'true';
 
-    @php
-        $navTransparent = trim($__env->yieldContent('nav_variant', 'solid')) === 'transparent';
-    @endphp
+    $navTransparent = trim(
+        $__env->yieldContent('nav_variant', 'solid')
+    ) === 'transparent';
+@endphp
+
+@if (!$dashboardLayout)
+    @include('partials.navbar')
+@endif
     {{-- Nav sekarang selalu 'fixed', jadi halaman non-hero butuh jarak atas manual
          supaya kontennya tidak ketutup navbar. Halaman hero (transparent) sengaja
          dibiarkan tanpa padding karena nav memang didesain menyatu di atas hero. --}}
-    <main class="{{ $navTransparent ? '' : 'pt-[80px] lg:pt-[128px]' }}">
-        @yield('content')
-    </main>
+    <main class="{{ $dashboardLayout ? '' : ($navTransparent ? '' : 'pt-[80px] lg:pt-[128px]') }}">
+    @yield('content')
+</main>
 
+@if (!$dashboardLayout)
     @include('partials.footer')
+@endif
     @include('partials.login-modal')
     @include('partials.register-modal')
 

@@ -285,6 +285,119 @@
 
         updateDisplay();
 
+        // ==========================================================
+// IDE TANGGAL MENGINAP
+// ==========================================================
+
+function setDateIdea(checkIn, checkOut) {
+
+    startDate = checkIn;
+    endDate = checkOut;
+    picking = 'start';
+
+    // Masukkan ke input
+    checkInInput.value = fmt(startDate);
+    checkOutInput.value = fmt(endDate);
+
+    // Update tampilan
+    updateDisplay();
+
+    // Render kalender
+    renderCalendar();
+
+    // Langsung submit pencarian
+    document.getElementById('search-form').submit();
+}
+
+
+// Hari ini
+document.getElementById('date-idea-today')?.addEventListener('click', function () {
+
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    setDateIdea(today, tomorrow);
+});
+
+
+// Besok
+document.getElementById('date-idea-tomorrow')?.addEventListener('click', function () {
+
+    const tomorrow = new Date();
+
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const checkout = new Date(tomorrow);
+    checkout.setDate(checkout.getDate() + 1);
+
+    setDateIdea(tomorrow, checkout);
+});
+
+
+// Weekend ini
+document.getElementById('date-idea-weekend')?.addEventListener('click', function () {
+
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    const saturday = new Date(today);
+
+    const day = saturday.getDay();
+
+    const daysUntilSaturday = (6 - day + 7) % 7;
+
+    saturday.setDate(
+        saturday.getDate() + daysUntilSaturday
+    );
+
+    const sunday = new Date(saturday);
+
+    sunday.setDate(
+        sunday.getDate() + 1
+    );
+
+    setDateIdea(saturday, sunday);
+});
+
+
+// Weekend depan
+document.getElementById('date-idea-next-weekend')?.addEventListener('click', function () {
+
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    const saturday = new Date(today);
+
+    const day = saturday.getDay();
+
+    let daysUntilSaturday = (6 - day + 7) % 7;
+
+    // Kalau hari ini Sabtu/Minggu,
+    // ambil Sabtu minggu berikutnya
+    if (daysUntilSaturday === 0) {
+        daysUntilSaturday = 7;
+    }
+
+    saturday.setDate(
+        saturday.getDate() + daysUntilSaturday + 7
+    );
+
+    const sunday = new Date(saturday);
+
+    sunday.setDate(
+        sunday.getDate() + 1
+    );
+
+    setDateIdea(saturday, sunday);
+});
+
         // ---------- Guest & room counter ----------
         const guestTrigger = document.getElementById('guest-trigger');
         const guestPanel   = document.getElementById('guest-panel');
@@ -352,59 +465,714 @@
             {{-- ===== SIDEBAR KIRI ===== --}}
             <aside class="lg:w-72 shrink-0 space-y-4">
 
-                {{-- Promo box --}}
-                <div class="bg-gradient-to-br from-brand-blue to-navy-800 text-white rounded-xl p-4 relative overflow-hidden">
-                    <div class="text-xl mb-1">🎁</div>
-                    <p class="font-bold text-sm leading-snug">Mau lebih hemat?</p>
-                    <p class="text-xs text-blue-100 mt-1">Buka promo khusus pengguna aplikasi — instal sekarang!</p>
-                </div>
+                {{-- Promo / Hemat --}}
+<button
+    type="button"
+    id="hemat-button"
+    class="w-full text-left bg-gradient-to-br from-brand-blue to-navy-800 text-white rounded-xl p-4 relative overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition duration-200"
+>
+    <div class="flex items-start gap-3">
+        <div class="text-2xl shrink-0">🎁</div>
 
-                {{-- Peta (visual saja, belum fungsional) --}}
-                <div class="border border-gray-200 rounded-xl overflow-hidden">
-                    <div class="h-24 bg-blue-50 flex items-center justify-center text-3xl">🗺️</div>
-                    <button type="button"
-                            class="w-full bg-brand-blue hover:bg-blue-700 transition text-white text-sm font-semibold py-2.5">
-                        📍 Buka Peta
-                    </button>
-                </div>
+        <div class="flex-1">
+            <p class="font-bold text-sm leading-snug">
+                Mau lebih hemat?
+            </p>
 
-                {{-- Ide tanggal menginap (visual saja) --}}
-                <div class="border border-gray-200 rounded-xl p-4">
-                    <p class="text-sm font-bold text-navy-900 mb-3">Ide Tanggal Menginap</p>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <button type="button" class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue transition">
-                            <div class="font-semibold text-navy-900">Hari Ini</div>
-                            <div class="text-gray-400">{{ now()->translatedFormat('d M') }}</div>
-                        </button>
-                        <button type="button" class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue transition">
-                            <div class="font-semibold text-navy-900">Besok</div>
-                            <div class="text-gray-400">{{ now()->addDay()->translatedFormat('d M') }}</div>
-                        </button>
-                        <button type="button" class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue transition">
-                            <div class="font-semibold text-navy-900">Weekend Ini</div>
-                            <div class="text-gray-400">{{ now()->next('Saturday')->translatedFormat('d M') }}</div>
-                        </button>
-                        <button type="button" class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue transition">
-                            <div class="font-semibold text-navy-900">Weekend Depan</div>
-                            <div class="text-gray-400">{{ now()->next('Saturday')->addWeek()->translatedFormat('d M') }}</div>
-                        </button>
-                    </div>
-                </div>
+            <p class="text-xs text-blue-100 mt-1">
+                Cari penginapan sesuai budget kamu dengan filter harga.
+            </p>
 
-                {{-- Rentang Harga (visual saja, belum fungsional) --}}
-                <div class="border border-gray-200 rounded-xl p-4">
-                    <div class="flex items-center justify-between mb-1">
-                        <p class="text-sm font-bold text-navy-900">Rentang Harga</p>
-                        <button type="button" class="text-xs text-brand-blue hover:underline">Reset</button>
-                    </div>
-                    <p class="text-xs text-gray-400 mb-3">Per kamar, per malam</p>
-                    <input type="range" class="w-full accent-brand-blue" min="0" max="100" value="50" disabled>
-                    <div class="flex gap-2 mt-4">
-                        <button type="button" class="flex-1 border border-gray-300 text-gray-500 text-sm font-semibold py-2 rounded-lg">Reset</button>
-                        <button type="button" class="flex-1 bg-brand-blue text-white text-sm font-semibold py-2 rounded-lg">Terapkan</button>
-                    </div>
-                    <p class="text-[11px] text-gray-400 mt-2">*Filter harga masih tampilan, belum aktif memfilter data.</p>
-                </div>
+            <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-white">
+                Lihat harga termurah
+                <span>→</span>
+            </div>
+        </div>
+    </div>
+</button>
+
+                {{-- PETA --}}
+<div class="border border-gray-200 rounded-xl overflow-hidden bg-white">
+
+    <div class="h-24 bg-blue-50 flex items-center justify-center relative overflow-hidden">
+
+        <div class="absolute inset-0 opacity-20"
+             style="background-image:
+             linear-gradient(#3b82f6 1px, transparent 1px),
+             linear-gradient(90deg, #3b82f6 1px, transparent 1px);
+             background-size: 20px 20px;">
+        </div>
+
+        <div class="relative text-4xl">
+            🗺️
+        </div>
+
+    </div>
+
+    <button
+        type="button"
+        id="open-map-button"
+        class="w-full bg-brand-blue hover:bg-blue-700 transition text-white text-sm font-semibold py-2.5"
+    >
+        📍 Buka Peta
+    </button>
+
+</div>
+
+                {{-- =========================================================
+     IDE TANGGAL MENGINAP
+     ========================================================= --}}
+<div class="border border-gray-200 rounded-xl p-4">
+
+    <p class="text-sm font-bold text-navy-900 mb-3">
+        Ide Tanggal Menginap
+    </p>
+
+    <div class="grid grid-cols-2 gap-2 text-xs">
+
+        {{-- HARI INI --}}
+        <button
+            type="button"
+            id="date-idea-today"
+            class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue hover:bg-blue-50 transition"
+        >
+            <div class="font-semibold text-navy-900">
+                Hari Ini
+            </div>
+
+            <div class="text-gray-400">
+                {{ now()->translatedFormat('d M') }}
+            </div>
+        </button>
+
+
+        {{-- BESOK --}}
+        <button
+            type="button"
+            id="date-idea-tomorrow"
+            class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue hover:bg-blue-50 transition"
+        >
+            <div class="font-semibold text-navy-900">
+                Besok
+            </div>
+
+            <div class="text-gray-400">
+                {{ now()->addDay()->translatedFormat('d M') }}
+            </div>
+        </button>
+
+
+        {{-- WEEKEND INI --}}
+        <button
+            type="button"
+            id="date-idea-weekend"
+            class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue hover:bg-blue-50 transition"
+        >
+            <div class="font-semibold text-navy-900">
+                Weekend Ini
+            </div>
+
+            <div class="text-gray-400">
+                {{ now()->next('Saturday')->translatedFormat('d M') }}
+            </div>
+        </button>
+
+
+        {{-- WEEKEND DEPAN --}}
+        <button
+            type="button"
+            id="date-idea-next-weekend"
+            class="border border-gray-200 rounded-lg py-2 text-left px-2.5 hover:border-brand-blue hover:bg-blue-50 transition"
+        >
+            <div class="font-semibold text-navy-900">
+                Weekend Depan
+            </div>
+
+            <div class="text-gray-400">
+                {{ now()->next('Saturday')->addWeek()->translatedFormat('d M') }}
+            </div>
+        </button>
+
+    </div>
+</div>
+
+
+
+                {{-- =========================================================
+     RENTANG HARGA
+     ========================================================= --}}
+<div
+    id="price-filter-section"
+    class="border border-gray-200 rounded-xl p-4 transition-all duration-300"
+>
+
+    <div class="flex items-center justify-between mb-1">
+        <p class="text-sm font-bold text-navy-900">
+            Rentang Harga
+        </p>
+
+        <a href="{{ route('home', request()->except(['min_price', 'max_price', 'page'])) }}"
+           class="text-xs text-brand-blue hover:underline">
+            Reset
+        </a>
+    </div>
+
+    <p class="text-xs text-gray-400 mb-4">
+        Per kamar, per malam
+    </p>
+
+    @php
+        $priceMin = 0;
+        $priceMax = 2000000;
+
+        $selectedMin = request('min_price', $priceMin);
+        $selectedMax = request('max_price', $priceMax);
+
+        // Pastikan minimum tidak lebih besar dari maksimum
+        if ($selectedMin > $selectedMax) {
+            $selectedMin = $priceMin;
+            $selectedMax = $priceMax;
+        }
+    @endphp
+
+    {{-- Tampilan angka harga --}}
+    <div class="flex gap-2 mb-4">
+
+        <div class="flex-1 border border-gray-200 rounded-lg px-3 py-2">
+            <p class="text-[10px] text-gray-400">
+                Minimum
+            </p>
+
+            <p id="min-price-display"
+               class="text-sm font-bold text-navy-900">
+                Rp {{ number_format($selectedMin, 0, ',', '.') }}
+            </p>
+        </div>
+
+        <div class="flex-1 border border-gray-200 rounded-lg px-3 py-2">
+            <p class="text-[10px] text-gray-400">
+                Maksimum
+            </p>
+
+            <p id="max-price-display"
+               class="text-sm font-bold text-navy-900">
+                Rp {{ number_format($selectedMax, 0, ',', '.') }}
+            </p>
+        </div>
+
+    </div>
+
+    {{-- SLIDER --}}
+    <div class="relative h-8 flex items-center">
+
+        {{-- Track --}}
+        <div class="absolute left-0 right-0 h-1.5 bg-gray-200 rounded-full"></div>
+
+        {{-- Track aktif --}}
+        <div id="price-range-track"
+             class="absolute h-1.5 bg-brand-blue rounded-full">
+        </div>
+
+        {{-- Slider minimum --}}
+        <input
+            type="range"
+            id="min-price-slider"
+            min="{{ $priceMin }}"
+            max="{{ $priceMax }}"
+            step="10000"
+            value="{{ $selectedMin }}"
+            class="price-slider"
+        >
+
+        {{-- Slider maksimum --}}
+        <input
+            type="range"
+            id="max-price-slider"
+            min="{{ $priceMin }}"
+            max="{{ $priceMax }}"
+            step="10000"
+            value="{{ $selectedMax }}"
+            class="price-slider"
+        >
+
+    </div>
+
+    {{-- Batas harga --}}
+    <div class="flex justify-between text-[11px] text-gray-400 mt-1">
+        <span>Rp 0</span>
+        <span>Rp 2 jt+</span>
+    </div>
+
+    {{-- Form filter --}}
+    <form
+        id="price-filter-form"
+        action="{{ route('home') }}"
+        method="GET"
+        class="mt-4"
+    >
+
+        {{-- Pertahankan filter lain --}}
+        @foreach(request()->except(['min_price', 'max_price', 'page']) as $key => $value)
+
+            @if(is_array($value))
+
+                @foreach($value as $item)
+                    <input
+                        type="hidden"
+                        name="{{ $key }}[]"
+                        value="{{ $item }}"
+                    >
+                @endforeach
+
+            @else
+
+                <input
+                    type="hidden"
+                    name="{{ $key }}"
+                    value="{{ $value }}"
+                >
+
+            @endif
+
+        @endforeach
+
+        <input
+            type="hidden"
+            name="min_price"
+            id="min-price-input"
+            value="{{ $selectedMin }}"
+        >
+
+        <input
+            type="hidden"
+            name="max_price"
+            id="max-price-input"
+            value="{{ $selectedMax }}"
+        >
+
+        <div class="flex gap-2">
+
+            <button
+                type="button"
+                id="price-reset-button"
+                class="flex-1 border border-gray-300 text-gray-500 text-sm font-semibold py-2 rounded-lg hover:border-brand-blue hover:text-brand-blue transition"
+            >
+                Reset
+            </button>
+
+            <button
+                type="submit"
+                class="flex-1 bg-brand-blue text-white text-sm font-semibold py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+                Terapkan
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+{{-- =========================================================
+     KELAS BINTANG
+     ========================================================= --}}
+<div class="border border-gray-200 rounded-xl p-4">
+
+    <div class="flex items-center justify-between mb-1">
+
+        <p class="text-sm font-bold text-navy-900">
+            Bintang
+        </p>
+
+
+        <a
+            href="{{ route('home', request()->except(['stars', 'page'])) }}"
+            class="text-xs text-brand-blue hover:underline"
+        >
+            Reset
+        </a>
+
+    </div>
+
+
+    <p class="text-xs text-gray-400 mb-4">
+        Pilih kelas kenyamanan properti
+    </p>
+
+
+    <form
+        action="{{ route('home') }}"
+        method="GET"
+    >
+
+        {{-- Pertahankan filter lain --}}
+        @foreach(request()->except(['stars', 'page']) as $key => $value)
+
+            @if(is_array($value))
+
+                @foreach($value as $item)
+
+                    <input
+                        type="hidden"
+                        name="{{ $key }}[]"
+                        value="{{ $item }}"
+                    >
+
+                @endforeach
+
+            @else
+
+                <input
+                    type="hidden"
+                    name="{{ $key }}"
+                    value="{{ $value }}"
+                >
+
+            @endif
+
+        @endforeach
+
+
+        {{-- PILIHAN BINTANG --}}
+        <div class="space-y-1">
+
+
+            {{-- 1 BINTANG --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="stars[]"
+                    value="1"
+                    {{ in_array(1, array_map('intval', (array) request('stars', []))) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="text-sm text-gray-700 group-hover:text-brand-blue">
+                    <span class="text-yellow-400">
+                        ★
+                    </span>
+                    <span class="ml-1">
+                        1
+                    </span>
+                </span>
+
+                <span class="text-xs text-gray-400">
+                    Sederhana
+                </span>
+
+            </label>
+
+
+            {{-- 2 BINTANG --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="stars[]"
+                    value="2"
+                    {{ in_array(2, array_map('intval', (array) request('stars', []))) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="text-sm text-gray-700 group-hover:text-brand-blue">
+                    <span class="text-yellow-400">
+                        ★★
+                    </span>
+                    <span class="ml-1">
+                        2
+                    </span>
+                </span>
+
+                <span class="text-xs text-gray-400">
+                    Standar
+                </span>
+
+            </label>
+
+
+            {{-- 3 BINTANG --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="stars[]"
+                    value="3"
+                    {{ in_array(3, array_map('intval', (array) request('stars', []))) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="text-sm text-gray-700 group-hover:text-brand-blue">
+                    <span class="text-yellow-400">
+                        ★★★
+                    </span>
+                    <span class="ml-1">
+                        3
+                    </span>
+                </span>
+
+                <span class="text-xs text-gray-400">
+                    Nyaman
+                </span>
+
+            </label>
+
+
+            {{-- 4 BINTANG --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="stars[]"
+                    value="4"
+                    {{ in_array(4, array_map('intval', (array) request('stars', []))) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="text-sm text-gray-700 group-hover:text-brand-blue">
+                    <span class="text-yellow-400">
+                        ★★★★
+                    </span>
+                    <span class="ml-1">
+                        4
+                    </span>
+                </span>
+
+                <span class="text-xs text-gray-400">
+                    Premium
+                </span>
+
+            </label>
+
+
+            {{-- 5 BINTANG --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="stars[]"
+                    value="5"
+                    {{ in_array(5, array_map('intval', (array) request('stars', []))) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="text-sm text-gray-700 group-hover:text-brand-blue">
+                    <span class="text-yellow-400">
+                        ★★★★★
+                    </span>
+                    <span class="ml-1">
+                        5
+                    </span>
+                </span>
+
+                <span class="text-xs text-gray-400">
+                    Mewah
+                </span>
+
+            </label>
+
+        </div>
+
+
+        {{-- BUTTON --}}
+        <div class="flex gap-2 mt-4">
+
+            <a
+                href="{{ route('home', request()->except(['stars', 'page'])) }}"
+                class="flex-1 border border-gray-300 text-gray-500 text-sm font-semibold py-2 rounded-lg text-center hover:border-brand-blue hover:text-brand-blue transition"
+            >
+                Reset
+            </a>
+
+
+            <button
+                type="submit"
+                class="flex-1 bg-brand-blue text-white text-sm font-semibold py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+                Terapkan
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+{{-- =========================================================
+     RATING DARI TAMU
+     ========================================================= --}}
+
+<div class="border border-gray-200 rounded-xl p-4">
+
+    <div class="flex items-center justify-between mb-1">
+
+        <p class="text-sm font-bold text-navy-900">
+            Rating dari Tamu
+        </p>
+
+        <a
+            href="{{ route('home', request()->except(['guest_rating', 'page'])) }}"
+            class="text-xs text-brand-blue hover:underline"
+        >
+            Reset
+        </a>
+
+    </div>
+
+    <p class="text-xs text-gray-400 mb-4">
+        Penilaian berdasarkan pengalaman customer
+    </p>
+
+    <form
+        action="{{ route('home') }}"
+        method="GET"
+    >
+
+        {{-- Pertahankan filter yang lain --}}
+        @foreach(request()->except(['guest_rating', 'page']) as $key => $value)
+
+            @if(is_array($value))
+
+                @foreach($value as $item)
+
+                    <input
+                        type="hidden"
+                        name="{{ $key }}[]"
+                        value="{{ $item }}"
+                    >
+
+                @endforeach
+
+            @else
+
+                <input
+                    type="hidden"
+                    name="{{ $key }}"
+                    value="{{ $value }}"
+                >
+
+            @endif
+
+        @endforeach
+
+
+        {{-- PILIHAN RATING --}}
+        <div class="space-y-1">
+
+            {{-- 7+ NYAMAN --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="guest_rating[]"
+                    value="7"
+                    {{ in_array('7', $selectedGuestRatings ?? []) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-brand-blue">
+
+                    <span class="text-brand-blue text-base">
+                        ◈
+                    </span>
+
+                    <span class="font-semibold">
+                        7+
+                    </span>
+
+                    <span>
+                        Nyaman
+                    </span>
+
+                </span>
+
+            </label>
+
+
+            {{-- 8+ MENGESANKAN --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="guest_rating[]"
+                    value="8"
+                    {{ in_array('8', $selectedGuestRatings ?? []) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-brand-blue">
+
+                    <span class="text-brand-blue text-base">
+                        ◈
+                    </span>
+
+                    <span class="font-semibold">
+                        8+
+                    </span>
+
+                    <span>
+                        Mengesankan
+                    </span>
+
+                </span>
+
+            </label>
+
+
+            {{-- 9+ LUAR BIASA --}}
+            <label class="flex items-center gap-3 py-2 cursor-pointer group">
+
+                <input
+                    type="checkbox"
+                    name="guest_rating[]"
+                    value="9"
+                    {{ in_array('9', $selectedGuestRatings ?? []) ? 'checked' : '' }}
+                    class="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                >
+
+                <span class="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-brand-blue">
+
+                    <span class="text-brand-blue text-base">
+                        ◈
+                    </span>
+
+                    <span class="font-semibold">
+                        9+
+                    </span>
+
+                    <span>
+                        Luar Biasa
+                    </span>
+
+                </span>
+
+            </label>
+
+        </div>
+
+
+        {{-- BUTTON --}}
+        <div class="flex gap-2 mt-4">
+
+            <a
+                href="{{ route('home', request()->except(['guest_rating', 'page'])) }}"
+                class="flex-1 border border-gray-300 text-gray-500 text-sm font-semibold py-2 rounded-lg text-center hover:border-brand-blue hover:text-brand-blue transition"
+            >
+                Reset
+            </a>
+
+            <button
+                type="submit"
+                class="flex-1 bg-brand-blue text-white text-sm font-semibold py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+                Terapkan
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
             </aside>
 
             {{-- ===== KONTEN KANAN: LISTING ===== --}}
@@ -467,5 +1235,275 @@
             </div>
         </div>
     </section>
+
+    <style>
+    .price-slider {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 32px;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        pointer-events: none;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+
+    .price-slider::-webkit-slider-runnable-track {
+        height: 6px;
+        background: transparent;
+        border-radius: 999px;
+    }
+
+    .price-slider::-moz-range-track {
+        height: 6px;
+        background: transparent;
+        border-radius: 999px;
+    }
+
+    .price-slider::-webkit-slider-thumb {
+        appearance: none;
+        -webkit-appearance: none;
+
+        width: 22px;
+        height: 22px;
+
+        margin-top: -8px;
+
+        background: white;
+
+        border: 3px solid #0d6efd;
+
+        border-radius: 50%;
+
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        box-shadow: 0 1px 4px rgba(0,0,0,.18);
+    }
+
+    .price-slider::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+
+        background: white;
+
+        border: 3px solid #0d6efd;
+
+        border-radius: 50%;
+
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        box-shadow: 0 1px 4px rgba(0,0,0,.18);
+    }
+
+    #min-price-slider {
+        z-index: 3;
+    }
+
+    #max-price-slider {
+        z-index: 2;
+    }
+</style>
+
+<script>
+(function () {
+
+    const minSlider = document.getElementById('min-price-slider');
+    const maxSlider = document.getElementById('max-price-slider');
+
+    const minDisplay = document.getElementById('min-price-display');
+    const maxDisplay = document.getElementById('max-price-display');
+
+    const minInput = document.getElementById('min-price-input');
+    const maxInput = document.getElementById('max-price-input');
+
+    const track = document.getElementById('price-range-track');
+
+    const resetButton = document.getElementById('price-reset-button');
+
+    if (
+        !minSlider ||
+        !maxSlider ||
+        !minDisplay ||
+        !maxDisplay ||
+        !minInput ||
+        !maxInput ||
+        !track
+    ) {
+        return;
+    }
+
+
+    // Format Rupiah
+    function formatRupiah(value) {
+
+        value = parseInt(value);
+
+        return 'Rp ' + value.toLocaleString('id-ID');
+    }
+
+
+    // Update tampilan slider
+    function updateSlider() {
+
+        let min = parseInt(minSlider.value);
+        let max = parseInt(maxSlider.value);
+
+        // Jangan sampai minimum melewati maksimum
+        if (min >= max) {
+
+            if (document.activeElement === minSlider) {
+                min = max - 10000;
+
+                if (min < 0) {
+                    min = 0;
+                }
+
+                minSlider.value = min;
+
+            } else {
+
+                max = min + 10000;
+
+                if (max > 2000000) {
+                    max = 2000000;
+                }
+
+                maxSlider.value = max;
+            }
+        }
+
+
+        // Update angka
+        minDisplay.textContent = formatRupiah(min);
+        maxDisplay.textContent = formatRupiah(max);
+
+
+        // Update hidden input
+        minInput.value = min;
+        maxInput.value = max;
+
+
+        // Posisi track biru
+        const minValue = parseInt(minSlider.min);
+        const maxValue = parseInt(minSlider.max);
+
+        const left =
+            ((min - minValue) / (maxValue - minValue)) * 100;
+
+        const right =
+            ((max - minValue) / (maxValue - minValue)) * 100;
+
+
+        track.style.left = left + '%';
+        track.style.width = (right - left) + '%';
+    }
+
+
+    // Ketika slider digeser
+    minSlider.addEventListener('input', updateSlider);
+
+    maxSlider.addEventListener('input', updateSlider);
+
+
+    // Reset
+    resetButton.addEventListener('click', function () {
+
+        minSlider.value = 0;
+        maxSlider.value = 2000000;
+
+        updateSlider();
+
+    });
+
+
+    // Jalankan pertama kali
+    updateSlider();
+
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ==========================================================
+    // MAU LEBIH HEMAT
+    // Scroll langsung ke Rentang Harga
+    // ==========================================================
+
+    const hematButton = document.getElementById('hemat-button');
+
+    if (hematButton) {
+
+        hematButton.addEventListener('click', function () {
+
+            const priceSection = document.getElementById('price-filter-section');
+
+            if (priceSection) {
+
+                priceSection.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+
+                // Efek highlight sementara
+                priceSection.classList.add('ring-2', 'ring-brand-blue');
+
+                setTimeout(function () {
+                    priceSection.classList.remove(
+                        'ring-2',
+                        'ring-brand-blue'
+                    );
+                }, 1500);
+
+            }
+
+        });
+
+    }
+
+
+    // ==========================================================
+    // BUKA PETA
+    // ==========================================================
+
+    const mapButton = document.getElementById('open-map-button');
+
+    if (mapButton) {
+
+        mapButton.addEventListener('click', function () {
+
+            // Ambil lokasi dari search
+            const locationInput = document.querySelector(
+                'input[name="location"]'
+            );
+
+            let location = '';
+
+            if (locationInput && locationInput.value.trim() !== '') {
+                location = locationInput.value.trim();
+            } else {
+                location = 'Yogyakarta';
+            }
+
+            // Buka Google Maps berdasarkan lokasi
+            const mapUrl =
+                'https://www.google.com/maps/search/?api=1&query=' +
+                encodeURIComponent(location);
+
+            window.open(mapUrl, '_blank');
+
+        });
+
+    }
+
+});
+</script>
 
 @endsection

@@ -130,4 +130,113 @@
         checkOut.addEventListener('change', recalc);
     })();
 </script>
+
+@if (session('booking_error'))
+    <div id="bookingErrorModal" class="booking-error-overlay">
+        <div class="booking-error-modal">
+
+            <div class="booking-error-icon">
+                !
+            </div>
+
+            <h3>Property sudah dibooking</h3>
+
+            <p>
+                Property yang kamu pilih sudah dibooking
+                pada tanggal tersebut.
+            </p>
+
+            <button type="button" onclick="closeBookingError()">
+                Pilih Tanggal Lain
+            </button>
+
+        </div>
+    </div>
+
+    <script>
+        function closeBookingError() {
+            document.getElementById('bookingErrorModal').remove();
+        }
+    </script>
+@endif
+
+<style>
+    .booking-error-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+    }
+
+    .booking-error-modal {
+        width: 100%;
+        max-width: 420px;
+        background: #fff;
+        border-radius: 18px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+        animation: bookingModalShow 0.25s ease;
+    }
+
+    .booking-error-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: #fff3cd;
+        color: #d39e00;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        font-weight: 700;
+    }
+
+    .booking-error-modal h3 {
+        margin: 0 0 10px;
+        font-size: 22px;
+        color: #222;
+    }
+
+    .booking-error-modal p {
+        margin: 0 0 24px;
+        color: #666;
+        line-height: 1.6;
+        font-size: 14px;
+    }
+
+    .booking-error-modal button {
+        border: none;
+        border-radius: 10px;
+        padding: 12px 22px;
+        background: #222;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    .booking-error-modal button:hover {
+        opacity: 0.85;
+    }
+
+    @keyframes bookingModalShow {
+        from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.97);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+</style>
+
 @endsection

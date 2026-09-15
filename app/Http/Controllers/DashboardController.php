@@ -9,78 +9,155 @@ use Illuminate\Http\Request;
 class DashboardController extends Controller
 {
     /**
-     * Dashboard utama, isinya beda tergantung role:
-     *
-     * - Super Admin / Admin: dashboard transaksi, komisi, dan pajak platform
-     * - Mitra: dashboard pendapatan & histori transaksi propertinya sendiri
-     * - Customer: ringkasan booking miliknya sendiri
+     * Dashboard utama berdasarkan role user.
      */
     public function index(Request $request)
     {
         $user = $request->user();
 
+        /*
+        |--------------------------------------------------------------------------
+        | ADMIN / SUPER ADMIN
+        |--------------------------------------------------------------------------
+        */
+
         if ($user->hasAnyRole(['admin', 'super_admin'])) {
             return $this->adminDashboard();
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MITRA
+        |--------------------------------------------------------------------------
+        */
 
         if ($user->hasRole('mitra')) {
             return $this->mitraDashboard($user);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | CUSTOMER
+        |--------------------------------------------------------------------------
+        */
+
         return $this->customerDashboard($user);
     }
 
-    /**
-     * Admin & Super Admin:
-     * rekap transaksi, komisi, dan pajak seluruh platform.
-     */
+
+    // =========================================================================
+    // ADMIN
+    // =========================================================================
+
     private function adminDashboard()
     {
-        $paidBookings = Booking::where('payment_status', 'paid');
+        $paidBookings = Booking::where(
+            'payment_status',
+            'paid'
+        );
 
         $stats = [
             'total_properties' => Property::count(),
-            'pending_properties' => Property::where('status', 'pending')->count(),
-            'active_properties' => Property::where('status', 'active')->count(),
+
+            'pending_properties' => Property::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'active_properties' => Property::where(
+                'status',
+                'active'
+            )->count(),
 
             'total_bookings' => Booking::count(),
-            'pending_bookings' => Booking::where('status', 'pending')->count(),
 
-            'gross_revenue' => (clone $paidBookings)->sum('total_price'),
-            'total_commission' => (clone $paidBookings)->sum('commission_amount'),
-            'total_mitra_payout' => (clone $paidBookings)->sum('mitra_payout_amount'),
+            'pending_bookings' => Booking::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'gross_revenue' => (clone $paidBookings)
+                ->sum('total_price'),
+
+            'total_commission' => (clone $paidBookings)
+                ->sum('commission_amount'),
+
+            'total_mitra_payout' => (clone $paidBookings)
+                ->sum('mitra_payout_amount'),
         ];
 
-        $recentBookings = Booking::with('property', 'customer')
+        $recentBookings = Booking::with([
+            'property',
+            'customer'
+        ])
             ->latest()
             ->take(10)
             ->get();
 
-        $pendingProperties = Property::with('mitra')
-            ->where('status', 'pending')
+        $pendingProperties = Property::with([
+            'mitra'
+        ])
+            ->where(
+                'status',
+                'pending'
+            )
             ->latest()
             ->take(10)
             ->get();
 
         return view(
             'dashboard.admin',
-            compact('stats', 'recentBookings', 'pendingProperties')
+            compact(
+                'stats',
+                'recentBookings',
+                'pendingProperties'
+            )
         );
     }
 
-    /**
-     * Mitra:
-     * pendapatan & histori transaksi propertinya sendiri.
-     */
+
+    // =========================================================================
+    // MITRA
+    // =========================================================================
+
     private function mitraDashboard($user)
     {
-        $propertyIds = Property::where('mitra_id', $user->id)
-            ->pluck('id');
+        /*
+        |--------------------------------------------------------------------------
+        | PROPERTY IDS
+        |--------------------------------------------------------------------------
+        */
 
-        $paidBookings = Booking::whereIn('property_id', $propertyIds)
-            ->where('payment_status', 'paid');
+        $propertyIds = Property::where(
+            'mitra_id',
+            $user->id
+        )->pluck('id');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PAID BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
+        $paidBookings = Booking::whereIn(
+            'property_id',
+            $propertyIds
+        )
+            ->where(
+                'payment_status',
+                'paid'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATISTICS
+        |--------------------------------------------------------------------------
+        */
 
         $stats = [
+
             'total_properties' => $propertyIds->count(),
 
             'total_bookings' => Booking::whereIn(
@@ -95,65 +172,236 @@ class DashboardController extends Controller
                 ->sum('commission_amount'),
         ];
 
-        $recentBookings = Booking::with('property', 'customer')
-            ->whereIn('property_id', $propertyIds)
+
+        /*
+        |--------------------------------------------------------------------------
+        | RECENT BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
+        $recentBookings = Booking::with([
+            'property',
+            'customer'
+        ])
+            ->whereIn(
+                'property_id',
+                $propertyIds
+            )
             ->latest()
             ->take(10)
             ->get();
 
-        $properties = Property::where('mitra_id', $user->id)
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROPERTIES
+        |--------------------------------------------------------------------------
+        */
+
+        $properties = Property::where(
+            'mitra_id',
+            $user->id
+        )
             ->withCount('bookings')
             ->latest()
             ->get();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTHS
+        |--------------------------------------------------------------------------
+        */
+
+        $months = [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des',
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTHLY REVENUE
+        |--------------------------------------------------------------------------
+        */
+
+        $monthlyRevenue = Booking::whereIn(
+            'property_id',
+            $propertyIds
+        )
+            ->where(
+                'payment_status',
+                'paid'
+            )
+            ->whereYear(
+                'created_at',
+                now()->year
+            )
+            ->selectRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER) as month"
+            )
+            ->selectRaw(
+                'SUM(mitra_payout_amount) as total'
+            )
+            ->groupByRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER)"
+            )
+            ->pluck(
+                'total',
+                'month'
+            );
+
+
+        $revenueChart = [
+
+            'labels' => array_values($months),
+
+            'data' => array_map(
+                function ($monthNumber) use ($monthlyRevenue) {
+                    return (float) (
+                        $monthlyRevenue[$monthNumber] ?? 0
+                    );
+                },
+                array_keys($months)
+            ),
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROPERTY TYPES
+        |--------------------------------------------------------------------------
+        */
+
+        $propertyTypeLabels = [
+            'guesthouse' => 'Guest House',
+            'kost_harian' => 'Kost Harian',
+            'villa' => 'Villa',
+        ];
+
+        $propertyTypeColors = [
+            'guesthouse' => '#059669',
+            'kost_harian' => '#f59e0b',
+            'villa' => '#8b5cf6',
+        ];
+
+
+        $propertyTypeCounts = Property::where(
+            'mitra_id',
+            $user->id
+        )
+            ->selectRaw(
+                'type, COUNT(*) as total'
+            )
+            ->groupBy('type')
+            ->pluck(
+                'total',
+                'type'
+            );
+
+
+        $propertyTypeDistribution = collect(
+            $propertyTypeLabels
+        )->map(
+            function (
+                $label,
+                $type
+            ) use (
+                $propertyTypeCounts,
+                $propertyTypeColors
+            ) {
+
+                return [
+
+                    'type' => $type,
+
+                    'label' => $label,
+
+                    'count' => (int) (
+                        $propertyTypeCounts[$type] ?? 0
+                    ),
+
+                    'color' => $propertyTypeColors[$type]
+                        ?? '#94a3b8',
+
+                ];
+            }
+        )->values();
+
+
         return view(
             'dashboard.mitra',
-            compact('stats', 'recentBookings', 'properties')
+            compact(
+                'stats',
+                'recentBookings',
+                'properties',
+                'revenueChart',
+                'propertyTypeDistribution'
+            )
         );
     }
 
-    /**
-     * Customer:
-     * ringkasan booking miliknya sendiri.
-     */
+
+    // =========================================================================
+    // CUSTOMER
+    // =========================================================================
+
     private function customerDashboard($user)
     {
         /*
         |--------------------------------------------------------------------------
-        | Semua booking milik customer
+        | SEMUA BOOKING CUSTOMER
         |--------------------------------------------------------------------------
         */
+
         $customerBookings = Booking::where(
             'customer_id',
             $user->id
         );
 
+
         /*
         |--------------------------------------------------------------------------
-        | Booking yang sudah dibayar
+        | BOOKING SUDAH DIBAYAR
         |--------------------------------------------------------------------------
         */
+
         $paidBookings = Booking::where(
             'customer_id',
             $user->id
-        )->where(
-            'payment_status',
-            'paid'
-        );
+        )
+            ->where(
+                'payment_status',
+                'paid'
+            );
+
 
         /*
         |--------------------------------------------------------------------------
-        | Statistik Customer
+        | STATISTICS
         |--------------------------------------------------------------------------
         */
+
         $stats = [
 
-            // Sudah ada sebelumnya
             'total_bookings' => (clone $customerBookings)
                 ->count(),
 
             'upcoming_bookings' => (clone $customerBookings)
-                ->where('status', 'confirmed')
+                ->where(
+                    'status',
+                    'confirmed'
+                )
                 ->where(
                     'check_in',
                     '>=',
@@ -165,7 +413,6 @@ class DashboardController extends Controller
                 ->savedProperties()
                 ->count(),
 
-            // TAMBAHAN
             'completed_bookings' => (clone $customerBookings)
                 ->where(
                     'check_out',
@@ -190,26 +437,48 @@ class DashboardController extends Controller
                 ->sum('total_price'),
         ];
 
+
         /*
         |--------------------------------------------------------------------------
-        | Booking Terbaru
+        | BOOKING AKTIF / TERDEKAT
         |--------------------------------------------------------------------------
+        |
+        | Ini yang menjadi kartu besar paling atas.
+        |
         */
-        $recentBookings = Booking::with('property')
+
+        $activeBooking = Booking::with([
+            'property.images'
+        ])
             ->where(
                 'customer_id',
                 $user->id
             )
-            ->latest()
-            ->take(10)
-            ->get();
+            ->where(
+                'status',
+                'confirmed'
+            )
+            ->where(
+                'check_out',
+                '>=',
+                now()->toDateString()
+            )
+            ->orderBy(
+                'check_in',
+                'asc'
+            )
+            ->first();
+
 
         /*
         |--------------------------------------------------------------------------
-        | Booking Terdekat
+        | UPCOMING TRIPS
         |--------------------------------------------------------------------------
         */
-        $upcomingBooking = Booking::with('property')
+
+        $upcomingTrips = Booking::with([
+            'property.images'
+        ])
             ->where(
                 'customer_id',
                 $user->id
@@ -223,15 +492,117 @@ class DashboardController extends Controller
                 '>=',
                 now()->toDateString()
             )
-            ->orderBy('check_in')
-            ->first();
+            ->orderBy(
+                'check_in',
+                'asc'
+            )
+            ->take(6)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PAST TRIPS
+        |--------------------------------------------------------------------------
+        */
+
+        $pastTrips = Booking::with([
+            'property.images'
+        ])
+            ->where(
+                'customer_id',
+                $user->id
+            )
+            ->where(
+                'check_out',
+                '<',
+                now()->toDateString()
+            )
+            ->orderBy(
+                'check_out',
+                'desc'
+            )
+            ->take(6)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | BOOKING TERBARU
+        |--------------------------------------------------------------------------
+        */
+
+        $recentBookings = Booking::with([
+            'property.images'
+        ])
+            ->where(
+                'customer_id',
+                $user->id
+            )
+            ->latest()
+            ->take(10)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MOST POPULAR
+        |--------------------------------------------------------------------------
+        |
+        | Tetap dikirim jika nanti ingin digunakan kembali.
+        |
+        */
+
+        $popularProperties = Property::with([
+            'images'
+        ])
+            ->withCount('bookings')
+            ->where(
+                'status',
+                'active'
+            )
+            ->orderByDesc(
+                'bookings_count'
+            )
+            ->latest()
+            ->take(4)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | NEARBY PROPERTIES
+        |--------------------------------------------------------------------------
+        */
+
+        $nearbyProperties = Property::with([
+            'images'
+        ])
+            ->where(
+                'status',
+                'active'
+            )
+            ->latest()
+            ->take(4)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VIEW
+        |--------------------------------------------------------------------------
+        */
 
         return view(
             'dashboard.customer',
             compact(
                 'stats',
+                'activeBooking',
+                'upcomingTrips',
+                'pastTrips',
                 'recentBookings',
-                'upcomingBooking'
+                'popularProperties',
+                'nearbyProperties'
             )
         );
     }

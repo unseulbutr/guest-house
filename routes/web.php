@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FacilityController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyReviewController;
 use App\Http\Controllers\SavedPropertyController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SettingController;
@@ -106,6 +107,86 @@ Route::middleware([
     'auth',
     'active'
 ])->group(function () {
+
+/*
+|--------------------------------------------------------------------------
+| BOOKING EXTENSIONS
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['role:customer'])
+    ->prefix('customer')
+    ->name('customer.')
+    ->group(function () {
+
+        Route::get(
+            'bookings/{booking}/extension',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'create'
+            ]
+        )->name('bookings.extension.create');
+
+
+        Route::post(
+            'bookings/{booking}/extension',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'store'
+            ]
+        )->name('bookings.extension.store');
+
+
+        Route::patch(
+            'booking-extensions/{extension}/cancel',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'cancel'
+            ]
+        )->name('booking-extensions.cancel');
+    });
+
+
+Route::middleware(['role:mitra'])
+    ->prefix('mitra')
+    ->name('mitra.')
+    ->group(function () {
+
+        Route::get(
+            'booking-extensions',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'indexForMitra'
+            ]
+        )->name('booking-extensions.index');
+
+
+        Route::get(
+            'booking-extensions/{extension}',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'show'
+            ]
+        )->name('booking-extensions.show');
+
+
+        Route::patch(
+            'booking-extensions/{extension}/approve',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'approve'
+            ]
+        )->name('booking-extensions.approve');
+
+
+        Route::patch(
+            'booking-extensions/{extension}/reject',
+            [
+                \App\Http\Controllers\BookingExtensionController::class,
+                'reject'
+            ]
+        )->name('booking-extensions.reject');
+    });
 
 
     // ========================================================
@@ -211,6 +292,11 @@ Route::middleware([
             'bookings/{booking}/reject',
             [BookingController::class, 'reject']
         )->name('bookings.reject');
+
+         Route::delete(
+            'properties/images/{image}', 
+            [PropertyController::class, 'destroyImage'])
+            ->name('properties.images.destroy');
     });
 
 
@@ -244,6 +330,11 @@ Route::middleware([
             'bookings/{booking}',
             [BookingController::class, 'show']
         )->name('bookings.show');
+
+        Route::post(
+            'bookings/{booking}/review',
+            [PropertyReviewController::class, 'store']
+        )->name('bookings.review.store');
 
         Route::patch(
             'bookings/{booking}/cancel',
@@ -360,6 +451,11 @@ Route::middleware([
             'bookings/{booking}',
             [BookingController::class, 'show']
         )->name('bookings.show');
+
+        Route::patch(
+    'bookings/{booking}/refund',
+    [BookingController::class, 'processRefund']
+)->name('bookings.refund');
     });
 
 

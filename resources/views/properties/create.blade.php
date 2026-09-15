@@ -76,23 +76,106 @@
         <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
             <h2 class="font-bold text-navy-900">Kapasitas &amp; Harga</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Kamar Tidur</label>
-                    <input type="number" name="bedroom_count" min="1" value="{{ old('bedroom_count', 1) }}" required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Kapasitas Tamu</label>
-                    <input type="number" name="guest_capacity" min="1" value="{{ old('guest_capacity', 2) }}" required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Harga / Malam (Rp)</label>
-                    <input type="number" name="price_per_night" min="0" value="{{ old('price_per_night') }}" required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
-                </div>
-            </div>
+           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+            Jumlah Kamar Tidur
+        </label>
+
+        <input
+            type="number"
+            name="bedroom_count"
+            min="1"
+            value="{{ old('bedroom_count') }}"
+            required
+            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        >
+    </div>
+
+
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+            Kapasitas Tamu
+        </label>
+
+        <input
+            type="number"
+            name="guest_capacity"
+            min="1"
+            value="{{ old('guest_capacity') }}"
+            required
+            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        >
+    </div>
+
+</div>
+
+
+{{-- ===== KELAS BINTANG & HARGA ===== --}}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    {{-- BINTANG --}}
+    <div>
+
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+            Kelas Bintang Properti
+        </label>
+
+        <select
+            name="star_rating"
+            required
+            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        >
+
+            <option value="1" {{ old('star_rating', 1) == 1 ? 'selected' : '' }}>
+                ⭐ 1 Bintang — Sederhana
+            </option>
+
+            <option value="2" {{ old('star_rating') == 2 ? 'selected' : '' }}>
+                ⭐⭐ 2 Bintang — Standar
+            </option>
+
+            <option value="3" {{ old('star_rating') == 3 ? 'selected' : '' }}>
+                ⭐⭐⭐ 3 Bintang — Nyaman
+            </option>
+
+            <option value="4" {{ old('star_rating') == 4 ? 'selected' : '' }}>
+                ⭐⭐⭐⭐ 4 Bintang — Premium
+            </option>
+
+            <option value="5" {{ old('star_rating') == 5 ? 'selected' : '' }}>
+                ⭐⭐⭐⭐⭐ 5 Bintang — Mewah
+            </option>
+
+        </select>
+
+        <p class="text-xs text-gray-400 mt-1">
+            Tentukan kelas fasilitas dan kenyamanan properti.
+        </p>
+
+    </div>
+
+
+    {{-- HARGA --}}
+    <div>
+
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+            Harga / Malam (Rp)
+        </label>
+
+        <input
+            type="number"
+            name="price_per_night"
+            min="0"
+            value="{{ old('price_per_night') }}"
+            required
+            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        >
+
+    </div>
+
+</div>
         </div>
 
         {{-- ===== Skema Pengelolaan ===== --}}
@@ -148,7 +231,18 @@
         {{-- ===== Foto Sampul ===== --}}
         <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-2">
             <h2 class="font-bold text-navy-900">Foto Sampul</h2>
-            <input type="file" name="cover_image" class="text-sm">
+            <p class="text-xs text-gray-500 mb-2">Foto utama yang tampil di kartu listing homepage.</p>
+            <input type="file" name="cover_image" accept="image/*" class="text-sm">
+        </div>
+
+        {{-- ===== Galeri Foto Tambahan ===== --}}
+        <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-2">
+            <h2 class="font-bold text-navy-900">Galeri Foto</h2>
+            <p class="text-xs text-gray-500 mb-2">
+                Foto-foto lain buat halaman detail properti (kamar, kolam renang, dapur, dll) — kayak di Traveloka.
+                Bisa pilih beberapa foto sekaligus.
+            </p>
+            <input type="file" name="photos[]" accept="image/*" multiple class="text-sm">
         </div>
 
         <button type="submit"
