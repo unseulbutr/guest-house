@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Property;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -51,10 +52,23 @@ class DashboardController extends Controller
 
     private function adminDashboard()
     {
+        /*
+        |--------------------------------------------------------------------------
+        | PAID BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
         $paidBookings = Booking::where(
             'payment_status',
             'paid'
         );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | BASIC STATISTICS
+        |--------------------------------------------------------------------------
+        */
 
         $stats = [
             'total_properties' => Property::count(),
@@ -76,6 +90,21 @@ class DashboardController extends Controller
                 'pending'
             )->count(),
 
+            'confirmed_bookings' => Booking::where(
+                'status',
+                'confirmed'
+            )->count(),
+
+            'completed_bookings' => Booking::where(
+                'status',
+                'completed'
+            )->count(),
+
+            'cancelled_bookings' => Booking::where(
+                'status',
+                'cancelled'
+            )->count(),
+
             'gross_revenue' => (clone $paidBookings)
                 ->sum('total_price'),
 
@@ -86,16 +115,150 @@ class DashboardController extends Controller
                 ->sum('mitra_payout_amount'),
         ];
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | USER STATISTICS
+        |--------------------------------------------------------------------------
+        */
+
+        $customerCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'customer');
+            }
+        )->count();
+
+        $mitraCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'mitra');
+            }
+        )->count();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTH LABELS
+        |--------------------------------------------------------------------------
+        */
+
+        $monthLabels = [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des',
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTHLY REVENUE
+        |--------------------------------------------------------------------------
+        |
+        | Menggunakan SQLite karena project kamu sebelumnya juga menggunakan
+        | strftime() untuk chart Mitra.
+        |
+        */
+
+        $monthlyRevenueQuery = Booking::where(
+            'payment_status',
+            'paid'
+        )
+            ->whereYear(
+                'created_at',
+                now()->year
+            )
+            ->selectRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER) as month"
+            )
+            ->selectRaw(
+                'SUM(total_price) as total'
+            )
+            ->groupByRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER)"
+            )
+            ->pluck(
+                'total',
+                'month'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | FORMAT MONTHLY REVENUE
+        |--------------------------------------------------------------------------
+        */
+
+        $monthlyRevenue = [];
+
+        foreach ($monthLabels as $monthNumber => $label) {
+            $monthlyRevenue[$monthNumber] = (float) (
+                $monthlyRevenueQuery[$monthNumber] ?? 0
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | BOOKING STATUS DISTRIBUTION
+        |--------------------------------------------------------------------------
+        */
+
+        $bookingStatus = [
+            'pending' => Booking::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'confirmed' => Booking::where(
+                'status',
+                'confirmed'
+            )->count(),
+
+            'completed' => Booking::where(
+                'status',
+                'completed'
+            )->count(),
+
+            'cancelled' => Booking::where(
+                'status',
+                'cancelled'
+            )->count(),
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RECENT BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
         $recentBookings = Booking::with([
             'property',
-            'customer'
+            'customer',
         ])
             ->latest()
             ->take(10)
             ->get();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | PENDING PROPERTIES
+        |--------------------------------------------------------------------------
+        */
+
         $pendingProperties = Property::with([
-            'mitra'
+            'mitra',
         ])
             ->where(
                 'status',
@@ -105,12 +268,24 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | RETURN VIEW
+        |--------------------------------------------------------------------------
+        */
+
         return view(
             'dashboard.admin',
             compact(
                 'stats',
                 'recentBookings',
-                'pendingProperties'
+                'pendingProperties',
+                'monthlyRevenue',
+                'monthLabels',
+                'bookingStatus',
+                'customerCount',
+                'mitraCount'
             )
         );
     }
@@ -262,15 +437,22 @@ class DashboardController extends Controller
             );
 
 
-        $revenueChart = [
+        /*
+        |--------------------------------------------------------------------------
+        | REVENUE CHART
+        |--------------------------------------------------------------------------
+        */
 
+        $revenueChart = [
             'labels' => array_values($months),
 
             'data' => array_map(
                 function ($monthNumber) use ($monthlyRevenue) {
+
                     return (float) (
                         $monthlyRevenue[$monthNumber] ?? 0
                     );
+
                 },
                 array_keys($months)
             ),
@@ -333,11 +515,16 @@ class DashboardController extends Controller
 
                     'color' => $propertyTypeColors[$type]
                         ?? '#94a3b8',
-
                 ];
             }
         )->values();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | RETURN VIEW
+        |--------------------------------------------------------------------------
+        */
 
         return view(
             'dashboard.mitra',
@@ -442,9 +629,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | BOOKING AKTIF / TERDEKAT
         |--------------------------------------------------------------------------
-        |
-        | Ini yang menjadi kartu besar paling atas.
-        |
         */
 
         $activeBooking = Booking::with([
@@ -468,6 +652,19 @@ class DashboardController extends Controller
                 'asc'
             )
             ->first();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | ALIAS UPCOMING BOOKING
+        |--------------------------------------------------------------------------
+        |
+        | Disediakan supaya Blade customer yang menggunakan
+        | $upcomingBooking tetap kompatibel.
+        |
+        */
+
+        $upcomingBooking = $activeBooking;
 
 
         /*
@@ -548,9 +745,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | MOST POPULAR
         |--------------------------------------------------------------------------
-        |
-        | Tetap dikirim jika nanti ingin digunakan kembali.
-        |
         */
 
         $popularProperties = Property::with([
@@ -589,7 +783,19 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | VIEW
+        | RECOMMENDED PROPERTIES
+        |--------------------------------------------------------------------------
+        |
+        | Alias tambahan untuk Blade customer.
+        |
+        */
+
+        $recommendedProperties = $popularProperties;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RETURN VIEW
         |--------------------------------------------------------------------------
         */
 
@@ -598,11 +804,13 @@ class DashboardController extends Controller
             compact(
                 'stats',
                 'activeBooking',
+                'upcomingBooking',
                 'upcomingTrips',
                 'pastTrips',
                 'recentBookings',
                 'popularProperties',
-                'nearbyProperties'
+                'nearbyProperties',
+                'recommendedProperties'
             )
         );
     }
