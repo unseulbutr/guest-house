@@ -136,20 +136,6 @@
 
                         </span>
 
-
-                        {{-- Promo --}}
-                        <a href="#"
-                           class="flex items-center gap-1.5
-                                  {{ $textMuted }}
-                                  {{ $textHover }}
-                                  transition-colors duration-200">
-
-                            <span class="text-base">%</span>
-                            Promo
-
-                        </a>
-
-
                         {{-- Partnership --}}
                         <a href="{{ route('register') }}"
                            class="{{ $textMuted }}

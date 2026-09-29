@@ -346,16 +346,15 @@
 
                 </div>
 
-            @else
+          @else
 
-                <span
-                    class="bg-brand-yellow text-navy-900 text-xs font-bold px-4 py-2 rounded-full group-hover:bg-brand-blue group-hover:text-white transition whitespace-nowrap"
-                >
-                    Lihat Detail
-                </span>
+    <span
+        class="inline-flex items-center justify-center bg-[#0095F6] hover:bg-[#0087E5] text-white text-xs font-bold px-5 py-2.5 rounded-full transition whitespace-nowrap shadow-sm"
+    >
+        Select Room
+    </span>
 
-            @endif
-
+@endif  
         </div>
 
 

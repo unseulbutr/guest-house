@@ -76,7 +76,6 @@ class BookingController extends Controller
         | BASE QUERY SESUAI ROLE
         |--------------------------------------------------------------------------
         |
-        | Jangan filter cancelled di sini.
         | Booking cancelled tetap terlihat karena bisa memiliki refund.
         |
         */
@@ -116,16 +115,6 @@ class BookingController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | ADMIN & SUPER ADMIN
-        |--------------------------------------------------------------------------
-        |
-        | Tidak perlu filter.
-        | Mereka dapat melihat seluruh booking.
-        |
-        */
-
-        /*
-        |--------------------------------------------------------------------------
         | BOOKING DALAM BULAN
         |--------------------------------------------------------------------------
         */
@@ -152,18 +141,6 @@ class BookingController extends Controller
         |--------------------------------------------------------------------------
         | JUMLAH BOOKING PER TANGGAL
         |--------------------------------------------------------------------------
-        |
-        | Contoh:
-        |
-        | check_in  = 20 September
-        | check_out = 25 September
-        |
-        | Maka tanggal yang terisi:
-        | 20, 21, 22, 23, 24
-        |
-        | Tanggal 25 adalah tanggal checkout dan tidak dihitung sebagai
-        | malam yang ditempati.
-        |
         */
 
         $bookingCounts = [];
@@ -197,22 +174,6 @@ class BookingController extends Controller
         |--------------------------------------------------------------------------
         | BOOKING PADA TANGGAL YANG DIPILIH
         |--------------------------------------------------------------------------
-        |
-        | Booking dianggap aktif pada tanggal:
-        |
-        | check_in <= selected_date
-        | DAN
-        | check_out > selected_date
-        |
-        | Jadi:
-        |
-        | 20 - 25
-        |
-        | akan muncul pada:
-        | 20, 21, 22, 23, 24
-        |
-        | dan tidak muncul pada tanggal 25 karena 25 adalah checkout.
-        |
         */
 
         $selectedBookings = (clone $baseQuery)
@@ -308,6 +269,27 @@ class BookingController extends Controller
             'check_out' => 'required|date|after:check_in',
 
             'guest_count' => 'required|integer|min:1',
+
+            /*
+            |--------------------------------------------------------------------------
+            | DATA TAMU
+            |--------------------------------------------------------------------------
+            */
+            'guest_name' => 'required|string|max:255',
+            'guest_phone' => 'required|string|max:20',
+            'guest_email' => 'nullable|email|max:255',
+            'guest_address' => 'nullable|string|max:1000',
+
+            /*
+            |--------------------------------------------------------------------------
+            | WAJIB MENYETUJUI SYARAT BOOKING
+            |--------------------------------------------------------------------------
+            */
+
+            'terms_accepted' => 'accepted',
+        ], [
+            'terms_accepted.accepted' =>
+                'Anda harus menyetujui Syarat & Ketentuan booking.',
         ]);
 
         /*
@@ -324,11 +306,6 @@ class BookingController extends Controller
         |--------------------------------------------------------------------------
         | CEK BENTROK BOOKING
         |--------------------------------------------------------------------------
-        |
-        | Hanya pending dan confirmed yang dianggap memakai tanggal.
-        |
-        | cancelled tidak menghalangi booking baru.
-        |
         */
 
         $isBooked = Booking::where(
@@ -444,6 +421,38 @@ class BookingController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
+                | HITUNG DP 50%
+                |--------------------------------------------------------------------------
+                */
+
+                $totalPrice = (float) $pricing['total_price'];
+
+                $dpAmount = round(
+                    $totalPrice * 0.50,
+                    2
+                );
+
+                $remainingAmount = round(
+                    $totalPrice - $dpAmount,
+                    2
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | DEADLINE PELUNASAN
+                |--------------------------------------------------------------------------
+                |
+                | Pelunasan dapat dilakukan kapan saja setelah DP berhasil
+                | dan wajib selesai sebelum tanggal check-in.
+                |
+                */
+
+                $settlementDeadline = Carbon::parse(
+                    $validated['check_in']
+                )->startOfDay();
+
+                /*
+                |--------------------------------------------------------------------------
                 | CREATE BOOKING
                 |--------------------------------------------------------------------------
                 */
@@ -464,6 +473,23 @@ class BookingController extends Controller
                     'guest_count' =>
                         $validated['guest_count'],
 
+                    /*
+                    |--------------------------------------------------------------------------
+                    | DATA TAMU
+                    |--------------------------------------------------------------------------
+                    */
+                    'guest_name' =>
+                        $validated['guest_name'],
+
+                    'guest_phone' =>
+                        $validated['guest_phone'],
+
+                    'guest_email' =>
+                        $validated['guest_email'] ?? null,
+
+                    'guest_address' =>
+                        $validated['guest_address'] ?? null,
+
                     'subtotal' =>
                         $pricing['subtotal'],
 
@@ -479,14 +505,50 @@ class BookingController extends Controller
                     'total_price' =>
                         $pricing['total_price'],
 
+                    /*
+                    |--------------------------------------------------------------------------
+                    | PAYMENT
+                    |--------------------------------------------------------------------------
+                    */
+
                     'payment_method' =>
                         'qris',
 
                     'payment_status' =>
                         'pending',
 
+                    'dp_amount' =>
+                        $dpAmount,
+
+                    'remaining_amount' =>
+                        $remainingAmount,
+
+                    'settlement_deadline' =>
+                        $settlementDeadline,
+
+                    'terms_accepted_at' =>
+                        now(),
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | REFUND
+                    |--------------------------------------------------------------------------
+                    */
+
                     'refund_status' =>
                         'none',
+
+                    'refund_amount' =>
+                        null,
+
+                    'cancellation_fee_amount' =>
+                        null,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | STATUS
+                    |--------------------------------------------------------------------------
+                    */
 
                     'status' =>
                         'pending',
@@ -526,7 +588,7 @@ class BookingController extends Controller
             )
             ->with(
                 'success',
-                'Booking dibuat, silakan selesaikan pembayaran QRIS.'
+                'Booking berhasil dibuat. Silakan bayar DP 50% untuk melanjutkan.'
             );
     }
 
@@ -546,12 +608,12 @@ class BookingController extends Controller
         );
 
         $booking->load([
-    'property',
-    'property.mitra',
-    'customer',
-    'extensions',
-    'review',
-]);
+            'property',
+            'property.mitra',
+            'customer',
+            'extensions',
+            'review',
+        ]);
 
         return view(
             'bookings.show',
@@ -578,6 +640,18 @@ class BookingController extends Controller
             $booking->status === 'pending',
             400,
             'Booking ini sudah diproses sebelumnya.'
+        );
+
+        abort_unless(
+            in_array(
+                $booking->payment_status,
+                [
+                    'dp_paid',
+                    'paid',
+                ]
+            ),
+            400,
+            'Booking belum memiliki pembayaran DP.'
         );
 
         $booking->update([
@@ -619,15 +693,63 @@ class BookingController extends Controller
             'rejected_by_mitra' => true,
         ]);
 
-        if ($booking->payment_status === 'paid') {
+        /*
+        |--------------------------------------------------------------------------
+        | JIKA SUDAH BAYAR DP
+        |--------------------------------------------------------------------------
+        |
+        | Jika Mitra yang menolak booking, DP dikembalikan penuh.
+        |
+        */
+
+        if ($booking->payment_status === 'dp_paid') {
+            $refundAmount = (float) (
+                $booking->dp_amount
+                ?? ($booking->total_price * 0.50)
+            );
+
+            $booking->update([
+                'refund_status' => 'pending',
+
+                'refund_amount' =>
+                    $refundAmount,
+
+                'cancellation_fee_amount' =>
+                    0,
+
+                'refund_reason' =>
+                    'Booking ditolak oleh mitra. DP dikembalikan penuh.',
+            ]);
+
+            $message =
+                'Booking ditolak. Refund DP sebesar Rp ' .
+                number_format(
+                    $refundAmount,
+                    0,
+                    ',',
+                    '.'
+                ) .
+                ' menunggu diproses.';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | JIKA SUDAH LUNAS
+        |--------------------------------------------------------------------------
+        */
+
+        elseif ($booking->payment_status === 'paid') {
             $booking->update([
                 'refund_status' => 'pending',
 
                 'refund_amount' =>
                     $booking->total_price,
 
+                'cancellation_fee_amount' =>
+                    0,
+
                 'refund_reason' =>
-                    'Booking ditolak oleh mitra.',
+                    'Booking ditolak oleh mitra. Refund penuh.',
             ]);
 
             $message =
@@ -639,7 +761,15 @@ class BookingController extends Controller
                     '.'
                 ) .
                 ' menunggu diproses.';
-        } else {
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | BELUM BAYAR
+        |--------------------------------------------------------------------------
+        */
+
+        else {
             $message =
                 'Booking #' .
                 $booking->booking_code .
@@ -689,7 +819,7 @@ class BookingController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | JIKA BELUM BAYAR
+        | BELUM BAYAR
         |--------------------------------------------------------------------------
         */
 
@@ -698,6 +828,8 @@ class BookingController extends Controller
                 'refund_status' => 'none',
 
                 'refund_amount' => null,
+
+                'cancellation_fee_amount' => null,
 
                 'refund_reason' =>
                     'Booking dibatalkan customer sebelum pembayaran.',
@@ -711,7 +843,127 @@ class BookingController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | JIKA SUDAH BAYAR
+        | SUDAH BAYAR DP
+        |--------------------------------------------------------------------------
+        |
+        | Biaya pembatalan berdasarkan jarak dengan tanggal check-in:
+        |
+        | >= 7 hari  = 0%
+        | 3-6 hari   = 5%
+        | H-2        = 10%
+        | H-1        = 15%
+        | Hari H     = 20%
+        |
+        */
+
+        if ($booking->payment_status === 'dp_paid') {
+            $dpAmount = (float) (
+                $booking->dp_amount
+                ?? ($booking->total_price * 0.50)
+            );
+
+            $checkIn = Carbon::parse(
+                $booking->check_in
+            )->startOfDay();
+
+            $today = now()->startOfDay();
+
+            /*
+            |--------------------------------------------------------------------------
+            | CEK BATAS PEMBATALAN
+            |--------------------------------------------------------------------------
+            |
+            | Pembatalan masih diperbolehkan sebelum waktu check-in.
+            |
+            */
+
+            abort_unless(
+                now()->lt($checkIn),
+                400,
+                'Booking tidak dapat dibatalkan setelah waktu check-in.'
+            );
+
+            $daysBeforeCheckIn = $today->diffInDays(
+                $checkIn,
+                false
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | TENTUKAN PERSENTASE BIAYA PEMBATALAN
+            |--------------------------------------------------------------------------
+            */
+
+            if ($daysBeforeCheckIn >= 7) {
+                $cancellationPercentage = 0;
+            } elseif ($daysBeforeCheckIn >= 3) {
+                $cancellationPercentage = 5;
+            } elseif ($daysBeforeCheckIn === 2) {
+                $cancellationPercentage = 10;
+            } elseif ($daysBeforeCheckIn === 1) {
+                $cancellationPercentage = 15;
+            } else {
+                // Hari H, tetapi masih sebelum waktu check-in.
+                $cancellationPercentage = 20;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | HITUNG BIAYA PEMBATALAN & REFUND
+            |--------------------------------------------------------------------------
+            */
+
+            $cancellationFee = round(
+                $dpAmount * ($cancellationPercentage / 100),
+                2
+            );
+
+            $refundAmount = round(
+                $dpAmount - $cancellationFee,
+                2
+            );
+
+            $booking->update([
+                'refund_status' =>
+                    'pending',
+
+                'refund_amount' =>
+                    $refundAmount,
+
+                'cancellation_fee_amount' =>
+                    $cancellationFee,
+
+                'refund_reason' =>
+                    'Customer membatalkan booking. Biaya pembatalan ' .
+                    $cancellationPercentage .
+                    '% dari DP.',
+            ]);
+
+            return back()->with(
+                'success',
+                'Booking dibatalkan. Refund sebesar Rp ' .
+                number_format(
+                    $refundAmount,
+                    0,
+                    ',',
+                    '.'
+                ) .
+                ' menunggu diproses. Biaya pembatalan sebesar ' .
+                $cancellationPercentage .
+                '% (Rp ' .
+                number_format(
+                    $cancellationFee,
+                    0,
+                    ',',
+                    '.'
+                ) .
+                ').'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUDAH LUNAS
         |--------------------------------------------------------------------------
         */
 
@@ -721,6 +973,9 @@ class BookingController extends Controller
 
                 'refund_amount' =>
                     $booking->total_price,
+
+                'cancellation_fee_amount' =>
+                    0,
 
                 'refund_reason' =>
                     'Customer membatalkan booking.',
@@ -763,7 +1018,13 @@ class BookingController extends Controller
         );
 
         abort_unless(
-            $booking->payment_status === 'paid',
+            in_array(
+                $booking->payment_status,
+                [
+                    'dp_paid',
+                    'paid',
+                ]
+            ),
             400,
             'Booking ini belum memiliki pembayaran yang dapat direfund.'
         );
@@ -774,14 +1035,32 @@ class BookingController extends Controller
             'Refund booking ini tidak sedang menunggu proses.'
         );
 
+        $refundAmount = $booking->refund_amount;
+
+        /*
+        |--------------------------------------------------------------------------
+        | FALLBACK UNTUK DATA LAMA
+        |--------------------------------------------------------------------------
+        */
+
+        if ($refundAmount === null) {
+            if ($booking->payment_status === 'dp_paid') {
+                $refundAmount =
+                    $booking->dp_amount
+                    ?? ($booking->total_price * 0.50);
+            } else {
+                $refundAmount =
+                    $booking->total_price;
+            }
+        }
+
         $booking->update([
             'payment_status' => 'refunded',
 
             'refund_status' => 'completed',
 
             'refund_amount' =>
-                $booking->refund_amount
-                ?? $booking->total_price,
+                $refundAmount,
 
             'refund_transaction_id' =>
                 'REFUND-' .
@@ -796,8 +1075,7 @@ class BookingController extends Controller
             'success',
             'Refund berhasil diproses sebesar Rp ' .
             number_format(
-                $booking->refund_amount
-                ?? $booking->total_price,
+                $refundAmount,
                 0,
                 ',',
                 '.'
@@ -808,7 +1086,44 @@ class BookingController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | RESOLVE STATUS AFTER PAYMENT
+    | RESOLVE STATUS AFTER DP
+    |--------------------------------------------------------------------------
+    */
+
+    protected function resolveStatusAfterDpPayment(
+        Booking $booking
+    ): string {
+        /*
+        |--------------------------------------------------------------------------
+        | DIKELOLA
+        |--------------------------------------------------------------------------
+        |
+        | Properti yang dikelola sistem dapat langsung confirmed
+        | setelah DP berhasil.
+        |
+        */
+
+        if (
+            $booking->property->management_type === 'dikelola'
+        ) {
+            return 'confirmed';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MANDIRI
+        |--------------------------------------------------------------------------
+        |
+        | Tetap pending sampai Mitra melakukan konfirmasi.
+        |
+        */
+
+        return 'pending';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESOLVE STATUS AFTER FULL PAYMENT
     |--------------------------------------------------------------------------
     */
 
@@ -824,6 +1139,13 @@ class BookingController extends Controller
     |--------------------------------------------------------------------------
     | WEBHOOK PAYMENT
     |--------------------------------------------------------------------------
+    |
+    | payment_stage:
+    |
+    | dp         = pembayaran DP 50%
+    | settlement = pelunasan 50%
+    | full       = pembayaran penuh/legacy
+    |
     */
 
     public function markAsPaid(
@@ -846,8 +1168,142 @@ class BookingController extends Controller
             'Booking sudah dibatalkan.'
         );
 
+        $paymentStage = $request->input(
+            'payment_stage',
+            'full'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | WEBHOOK DP
+        |--------------------------------------------------------------------------
+        */
+
+        if ($paymentStage === 'dp') {
+            abort_unless(
+                $booking->payment_status === 'pending',
+                400,
+                'Booking ini tidak sedang menunggu pembayaran DP.'
+            );
+
+            $dpAmount = (float) (
+                $booking->dp_amount
+                ?? ($booking->total_price * 0.50)
+            );
+
+            $remainingAmount = round(
+                (float) $booking->total_price - $dpAmount,
+                2
+            );
+
+            $booking->update([
+                'payment_status' => 'dp_paid',
+
+                'dp_amount' =>
+                    $dpAmount,
+
+                'dp_paid_at' =>
+                    now(),
+
+                'remaining_amount' =>
+                    $remainingAmount,
+
+                'settlement_deadline' =>
+                    $booking->settlement_deadline
+                    ??
+                    Carbon::parse(
+                        $booking->check_in
+                    )->startOfDay(),
+
+                'status' =>
+                    $this->resolveStatusAfterDpPayment(
+                        $booking
+                    ),
+
+                'qris_transaction_id' =>
+                    $request->input(
+                        'transaction_id'
+                    ),
+            ]);
+
+            return response()->json([
+                'message' =>
+                    'Pembayaran DP dikonfirmasi.',
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | WEBHOOK PELUNASAN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($paymentStage === 'settlement') {
+            abort_unless(
+                $booking->payment_status === 'dp_paid',
+                400,
+                'Booking belum berada pada tahap pelunasan.'
+            );
+
+            abort_unless(
+                $booking->status === 'confirmed',
+                400,
+                'Booking belum dikonfirmasi mitra.'
+            );
+
+            $settlementDeadline =
+                $booking->settlement_deadline
+                ??
+                Carbon::parse(
+                    $booking->check_in
+                )->startOfDay();
+
+            abort_unless(
+                now()->lessThan(
+                    Carbon::parse($booking->check_in)->startOfDay()
+                ),
+                400,
+                'Pelunasan harus diselesaikan sebelum tanggal check-in.'
+            );
+
+            $booking->update([
+                'payment_status' => 'paid',
+
+                'remaining_amount' =>
+                    0,
+
+                'settlement_paid_at' =>
+                    now(),
+
+                'qris_transaction_id' =>
+                    $request->input(
+                        'transaction_id'
+                    ),
+            ]);
+
+            return response()->json([
+                'message' =>
+                    'Pelunasan booking dikonfirmasi.',
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LEGACY / FULL PAYMENT
+        |--------------------------------------------------------------------------
+        |
+        | Tetap dipertahankan agar webhook lama tidak langsung rusak.
+        |
+        */
+
         $booking->update([
             'payment_status' => 'paid',
+
+            'remaining_amount' =>
+                0,
+
+            'settlement_paid_at' =>
+                now(),
 
             'status' =>
                 $this->resolveStatusAfterPayment(
@@ -868,7 +1324,7 @@ class BookingController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | SIMULATE PAYMENT
+    | SIMULATE DP PAYMENT
     |--------------------------------------------------------------------------
     */
 
@@ -894,16 +1350,46 @@ class BookingController extends Controller
             'Booking ini sudah dibayar/diproses.'
         );
 
+        $dpAmount = (float) (
+            $booking->dp_amount
+            ?? ($booking->total_price * 0.50)
+        );
+
+        $remainingAmount = round(
+            (float) $booking->total_price - $dpAmount,
+            2
+        );
+
+        $settlementDeadline =
+            $booking->settlement_deadline
+            ??
+            Carbon::parse(
+                $booking->check_in
+            )
+                ->startOfDay();
+
         $booking->update([
-            'payment_status' => 'paid',
+            'payment_status' => 'dp_paid',
+
+            'dp_amount' =>
+                $dpAmount,
+
+            'dp_paid_at' =>
+                now(),
+
+            'remaining_amount' =>
+                $remainingAmount,
+
+            'settlement_deadline' =>
+                $settlementDeadline,
 
             'status' =>
-                $this->resolveStatusAfterPayment(
+                $this->resolveStatusAfterDpPayment(
                     $booking
                 ),
 
             'qris_transaction_id' =>
-                'SIMULATED-' .
+                'DP-SIMULATED-' .
                 strtoupper(
                     uniqid()
                 ),
@@ -911,12 +1397,103 @@ class BookingController extends Controller
 
         $message =
             $booking->property->management_type === 'dikelola'
-                ? '(Simulasi) Pembayaran QRIS berhasil, booking dikonfirmasi otomatis.'
-                : '(Simulasi) Pembayaran QRIS berhasil. Menunggu konfirmasi dari mitra properti.';
+                ? '(Simulasi) Pembayaran DP 50% berhasil. Booking dikonfirmasi otomatis.'
+                : '(Simulasi) Pembayaran DP 50% berhasil. Menunggu konfirmasi dari mitra properti.';
 
         return back()->with(
             'success',
             $message
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SIMULATE SETTLEMENT / PELUNASAN
+    |--------------------------------------------------------------------------
+    */
+
+    public function simulateSettlement(
+        Request $request,
+        Booking $booking
+    ) {
+        abort_unless(
+            $booking->customer_id ===
+            $request->user()->id,
+            403,
+            'Anda tidak berhak membayar booking ini.'
+        );
+
+        abort_unless(
+            $booking->status !== 'cancelled',
+            400,
+            'Booking sudah dibatalkan.'
+        );
+
+        abort_unless(
+            $booking->payment_status === 'dp_paid',
+            400,
+            'Booking belum membayar DP.'
+        );
+
+        abort_unless(
+            $booking->status === 'confirmed',
+            400,
+            'Booking belum dikonfirmasi oleh mitra.'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | WAKTU PELUNASAN
+        |--------------------------------------------------------------------------
+        |
+        | Pelunasan dapat dilakukan kapan saja setelah DP berhasil.
+        | H-1 hanya digunakan sebagai waktu pengingat, bukan awal
+        | dibukanya pelunasan.
+        |
+        */
+
+        $checkIn = Carbon::parse(
+            $booking->check_in
+        );
+
+        $settlementDeadline =
+            $booking->settlement_deadline
+            ??
+            $checkIn->copy()->startOfDay();
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUDAH MASUK TANGGAL CHECK-IN
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            now()->lessThan(
+                $checkIn->copy()->startOfDay()
+            ),
+            400,
+            'Pelunasan harus diselesaikan sebelum tanggal check-in.'
+        );
+
+        $booking->update([
+            'payment_status' => 'paid',
+
+            'remaining_amount' =>
+                0,
+
+            'settlement_paid_at' =>
+                now(),
+
+            'qris_transaction_id' =>
+                'SETTLEMENT-SIMULATED-' .
+                strtoupper(
+                    uniqid()
+                ),
+        ]);
+
+        return back()->with(
+            'success',
+            '(Simulasi) Pelunasan 50% berhasil. Booking sekarang sudah lunas.'
         );
     }
 

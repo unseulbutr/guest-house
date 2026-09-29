@@ -16,6 +16,11 @@ class BookingExtension extends Model
         'additional_nights',
         'additional_amount',
         'status',
+        'payment_method',
+        'payment_status',
+        'qris_transaction_id',
+        'payment_deadline',
+        'paid_at',
         'customer_note',
         'rejection_reason',
         'approved_at',
@@ -26,14 +31,22 @@ class BookingExtension extends Model
         return [
             'old_check_out' => 'date',
             'new_check_out' => 'date',
+
             'additional_amount' => 'decimal:2',
+
+            'payment_deadline' => 'datetime',
+
+            'paid_at' => 'datetime',
+
             'approved_at' => 'datetime',
         ];
     }
 
     public function booking()
     {
-        return $this->belongsTo(Booking::class);
+        return $this->belongsTo(
+            Booking::class
+        );
     }
 
     public function isPending(): bool
@@ -49,5 +62,19 @@ class BookingExtension extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    public function isPaymentPending(): bool
+    {
+        return (
+            $this->status === 'approved'
+            &&
+            $this->payment_status === 'pending'
+        );
     }
 }

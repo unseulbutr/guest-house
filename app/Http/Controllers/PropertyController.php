@@ -6,704 +6,408 @@ use App\Models\Booking;
 use App\Models\Facility;
 use App\Models\Property;
 use App\Models\PropertyImage;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class PropertyController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | INDEX / HOMEPAGE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // PUBLIC PROPERTY INDEX
+    // ============================================================
 
     public function index(Request $request)
     {
-        /*
-        |--------------------------------------------------------------------------
-        | FILTER BINTANG PROPERTI
-        |--------------------------------------------------------------------------
-        */
-
-        $selectedStars = array_values(
-            array_filter(
-                array_map(
-                    'intval',
-                    (array) $request->input('stars', [])
-                ),
-                fn ($star) =>
-                    $star >= 1 && $star <= 5
-            )
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | FILTER RATING DARI TAMU
-        |--------------------------------------------------------------------------
-        |
-        | 7 = Nyaman
-        | 8 = Mengesankan
-        | 9 = Luar Biasa
-        |
-        */
-
-        $selectedGuestRatings = array_values(
-            array_intersect(
-                ['7', '8', '9'],
-                array_map(
-                    'strval',
-                    (array) $request->input(
-                        'guest_rating',
-                        []
-                    )
-                )
-            )
-        );
-
-        $minPrice =
-            $request->input('min_price');
-
-        $maxPrice =
-            $request->input('max_price');
-
-        /*
-        |--------------------------------------------------------------------------
-        | QUERY PROPERTY
-        |--------------------------------------------------------------------------
-        */
-
-        $properties = Property::with([
+        $query = Property::query()
+            ->where('status', 'active')
+            ->with([
                 'facilities',
-            ])
-
-            /*
-            |--------------------------------------------------------------------------
-            | RATA-RATA RATING TAMU
-            |--------------------------------------------------------------------------
-            */
-
-            ->withAvg(
                 'reviews',
-                'score'
-            )
+            ])
+            ->withAvg('reviews', 'score')
+            ->withCount('reviews');
 
-            /*
-            |--------------------------------------------------------------------------
-            | JUMLAH REVIEW
-            |--------------------------------------------------------------------------
-            */
+        // Bintang
+        if ($request->filled('stars')) {
+            $query->whereIn(
+                'star_rating',
+                (array) $request->stars
+            );
+        }
 
-            ->withCount(
-                'reviews'
-            )
+        // Rating
+        if ($request->filled('rating')) {
+            match ($request->rating) {
+                '7' => $query->having('reviews_avg_score', '>=', 7)
+                    ->having('reviews_avg_score', '<', 8),
 
-            /*
-            |--------------------------------------------------------------------------
-            | HANYA PROPERTY ACTIVE
-            |--------------------------------------------------------------------------
-            */
+                '8' => $query->having('reviews_avg_score', '>=', 8)
+                    ->having('reviews_avg_score', '<', 9),
 
-            ->where(
-                'status',
-                'active'
-            )
+                '9' => $query->having('reviews_avg_score', '>=', 9),
 
-            /*
-            |--------------------------------------------------------------------------
-            | LOCATION
-            |--------------------------------------------------------------------------
-            */
+                default => null,
+            };
+        }
 
-            ->when(
-                $request->filled('location'),
-                fn ($q) =>
-                    $q->where(
-                        'city',
-                        'like',
-                        '%' .
-                        $request->location .
-                        '%'
-                    )
-            )
+        // Harga minimum
+        if ($request->filled('min_price')) {
+            $query->where(
+                'price_per_night',
+                '>=',
+                $request->min_price
+            );
+        }
 
-            /*
-            |--------------------------------------------------------------------------
-            | GUEST CAPACITY
-            |--------------------------------------------------------------------------
-            */
+        // Harga maksimum
+        if ($request->filled('max_price')) {
+            $query->where(
+                'price_per_night',
+                '<=',
+                $request->max_price
+            );
+        }
 
-            ->when(
-                $request->filled('guests'),
-                fn ($q) =>
-                    $q->where(
-                        'guest_capacity',
-                        '>=',
-                        $request->guests
-                    )
-            )
+        // Lokasi
+        if ($request->filled('location')) {
+            $query->where(function ($q) use ($request) {
+                $q->where(
+                    'city',
+                    'like',
+                    '%' . $request->location . '%'
+                )
+                ->orWhere(
+                    'address',
+                    'like',
+                    '%' . $request->location . '%'
+                );
+            });
+        }
 
-            /*
-            |--------------------------------------------------------------------------
-            | TYPE
-            |--------------------------------------------------------------------------
-            */
+        // Tipe
+        if ($request->filled('type')) {
+            $query->where(
+                'type',
+                $request->type
+            );
+        }
 
-            ->when(
-                $request->filled('type'),
-                fn ($q) =>
-                    $q->where(
-                        'type',
-                        $request->type
-                    )
-            )
+        // Keyword
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
 
-            /*
-            |--------------------------------------------------------------------------
-            | BINTANG PROPERTI
-            |--------------------------------------------------------------------------
-            |
-            | Ini BUKAN rating tamu.
-            |
-            */
+            $query->where(function ($q) use ($keyword) {
+                $q->where(
+                    'name',
+                    'like',
+                    '%' . $keyword . '%'
+                )
+                ->orWhere(
+                    'city',
+                    'like',
+                    '%' . $keyword . '%'
+                )
+                ->orWhere(
+                    'address',
+                    'like',
+                    '%' . $keyword . '%'
+                );
+            });
+        }
 
-            ->when(
-                !empty($selectedStars),
-                function ($q) use (
-                    $selectedStars
-                ) {
-                    $q->whereIn(
-                        'star_rating',
-                        $selectedStars
-                    );
-                }
-            )
+        // Kapasitas tamu
+        if ($request->filled('guests')) {
+            $query->where(
+                'guest_capacity',
+                '>=',
+                $request->guests
+            );
+        }
 
-            /*
-            |--------------------------------------------------------------------------
-            | KEYWORD
-            |--------------------------------------------------------------------------
-            */
+        // Filter tanggal booking
+        if (
+            $request->filled('check_in') &&
+            $request->filled('check_out')
+        ) {
+            $checkIn = $request->check_in;
+            $checkOut = $request->check_out;
 
-            ->when(
-                $request->filled('keyword'),
-                fn ($q) =>
-                    $q->where(
-                        'name',
-                        'like',
-                        '%' .
-                        $request->keyword .
-                        '%'
-                    )
-            )
-
-            /*
-            |--------------------------------------------------------------------------
-            | AVAILABILITY BERDASARKAN TANGGAL
-            |--------------------------------------------------------------------------
-            */
-
-            ->when(
-                $request->filled('check_in') &&
-                $request->filled('check_out'),
-
-                function ($q) use ($request) {
-
-                    $checkIn =
-                        $request->input(
-                            'check_in'
-                        );
-
-                    $checkOut =
-                        $request->input(
-                            'check_out'
-                        );
-
-                    $q->whereDoesntHave(
-                        'bookings',
-                        function ($bookingQuery)
-                            use (
-                                $checkIn,
+            $query->whereDoesntHave(
+                'bookings',
+                function ($booking) use ($checkIn, $checkOut) {
+                    $booking
+                        ->whereIn('status', [
+                            'pending',
+                            'confirmed',
+                        ])
+                        ->where(function ($q) use ($checkIn, $checkOut) {
+                            $q->where(
+                                'check_in',
+                                '<',
                                 $checkOut
-                            ) {
-
-                            $bookingQuery
-                                ->whereIn(
-                                    'status',
-                                    [
-                                        'pending',
-                                        'confirmed',
-                                    ]
-                                )
-                                ->where(
-                                    function ($query)
-                                        use (
-                                            $checkIn,
-                                            $checkOut
-                                        ) {
-
-                                        $query
-                                            ->where(
-                                                'check_in',
-                                                '<',
-                                                $checkOut
-                                            )
-                                            ->where(
-                                                'check_out',
-                                                '>',
-                                                $checkIn
-                                            );
-                                    }
-                                );
-                        }
-                    );
+                            )
+                            ->where(
+                                'check_out',
+                                '>',
+                                $checkIn
+                            );
+                        });
                 }
-            )
+            );
+        }
 
-            /*
-            |--------------------------------------------------------------------------
-            | RATING DARI TAMU
-            |--------------------------------------------------------------------------
-            |
-            | Yang digunakan adalah RATA-RATA seluruh review.
-            |
-            | 7+  = 7.0 sampai 7.99
-            | 8+  = 8.0 sampai 8.99
-            | 9+  = 9.0 sampai 10
-            |
-            */
-
-            ->when(
-                !empty($selectedGuestRatings),
-
-                function ($q)
-                    use ($selectedGuestRatings) {
-
-                    $q->where(
-                        function ($query)
-                            use ($selectedGuestRatings) {
-
-                            foreach (
-                                $selectedGuestRatings
-                                as $rating
-                            ) {
-
-                                /*
-                                |--------------------------------------------------------------------------
-                                | 7+ NYAMAN
-                                |--------------------------------------------------------------------------
-                                */
-
-                                if ($rating === '7') {
-
-                                    $query->orWhere(
-                                        function ($subQuery) {
-
-                                            $subQuery
-                                                ->whereRaw(
-                                                    '(
-                                                        SELECT AVG(score)
-                                                        FROM property_reviews
-                                                        WHERE property_reviews.property_id = properties.id
-                                                    ) >= 7'
-                                                )
-                                                ->whereRaw(
-                                                    '(
-                                                        SELECT AVG(score)
-                                                        FROM property_reviews
-                                                        WHERE property_reviews.property_id = properties.id
-                                                    ) < 8'
-                                                );
-                                        }
-                                    );
-                                }
-
-                                /*
-                                |--------------------------------------------------------------------------
-                                | 8+ MENGESANKAN
-                                |--------------------------------------------------------------------------
-                                */
-
-                                if ($rating === '8') {
-
-                                    $query->orWhere(
-                                        function ($subQuery) {
-
-                                            $subQuery
-                                                ->whereRaw(
-                                                    '(
-                                                        SELECT AVG(score)
-                                                        FROM property_reviews
-                                                        WHERE property_reviews.property_id = properties.id
-                                                    ) >= 8'
-                                                )
-                                                ->whereRaw(
-                                                    '(
-                                                        SELECT AVG(score)
-                                                        FROM property_reviews
-                                                        WHERE property_reviews.property_id = properties.id
-                                                    ) < 9'
-                                                );
-                                        }
-                                    );
-                                }
-
-                                /*
-                                |--------------------------------------------------------------------------
-                                | 9+ LUAR BIASA
-                                |--------------------------------------------------------------------------
-                                */
-
-                                if ($rating === '9') {
-
-                                    $query->orWhere(
-                                        function ($subQuery) {
-
-                                            $subQuery->whereRaw(
-                                                '(
-                                                    SELECT AVG(score)
-                                                    FROM property_reviews
-                                                    WHERE property_reviews.property_id = properties.id
-                                                ) >= 9'
-                                            );
-                                        }
-                                    );
-                                }
-                            }
-                        }
-                    );
-                }
-            )
-
-            /*
-            |--------------------------------------------------------------------------
-            | HARGA MINIMUM
-            |--------------------------------------------------------------------------
-            */
-
-            ->when(
-                $request->filled('min_price'),
-                fn ($q) =>
-                    $q->where(
-                        'price_per_night',
-                        '>=',
-                        $minPrice
-                    )
-            )
-
-            /*
-            |--------------------------------------------------------------------------
-            | HARGA MAKSIMUM
-            |--------------------------------------------------------------------------
-            */
-
-            ->when(
-                $request->filled('max_price'),
-                fn ($q) =>
-                    $q->where(
-                        'price_per_night',
-                        '<=',
-                        $maxPrice
-                    )
-            )
-
+        $properties = $query
             ->latest()
-
             ->paginate(9)
-
             ->withQueryString();
-
-        /*
-        |--------------------------------------------------------------------------
-        | KIRIM KE VIEW
-        |--------------------------------------------------------------------------
-        */
 
         return view(
             'properties.index',
-            compact(
-                'properties',
-                'minPrice',
-                'maxPrice',
-                'selectedStars',
-                'selectedGuestRatings'
-            )
+            compact('properties')
         );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | MITRA INDEX
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // MITRA INDEX
+    // ============================================================
 
     public function mitraIndex(Request $request)
     {
-        $user =
-            $request->user();
-
-        $properties =
-            Property::where(
-                'mitra_id',
-                $user->id
-            )
-            ->latest()
-            ->paginate(10);
+        $properties = Property::where(
+            'mitra_id',
+            auth()->id()
+        )
+        ->with([
+            'facilities',
+            'images',
+        ])
+        ->latest()
+        ->paginate(10);
 
         return view(
             'properties.manage',
+            compact('properties')
+        );
+    }
+
+
+    // ============================================================
+    // MITRA CREATE
+    // ============================================================
+
+    public function create()
+    {
+        $facilities = Facility::orderBy('name')->get();
+
+        return view(
+            'properties.create',
+            compact('facilities')
+        );
+    }
+
+
+    // ============================================================
+    // MITRA STORE
+    // ============================================================
+
+    public function store(Request $request)
+    {
+        $validated = $this->validateProperty(
+            $request
+        );
+
+        $validated['mitra_id'] = auth()->id();
+        $validated['status'] = 'pending';
+
+        $property = $this->saveProperty(
+            $request,
+            $validated
+        );
+
+        return redirect()
+            ->route('mitra.properties.index')
+            ->with(
+                'success',
+                'Properti berhasil ditambahkan dan menunggu verifikasi admin.'
+            );
+    }
+
+
+    // ============================================================
+    // ADMIN PROPERTY INDEX
+    // ============================================================
+
+    public function adminIndex(Request $request)
+    {
+        $query = Property::with([
+            'mitra',
+        ])
+        ->withCount([
+            'bookings',
+            'reviews',
+        ])
+        ->withAvg(
+            'reviews',
+            'score'
+        );
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where(
+                    'name',
+                    'like',
+                    '%' . $search . '%'
+                )
+                ->orWhere(
+                    'city',
+                    'like',
+                    '%' . $search . '%'
+                )
+                ->orWhere(
+                    'address',
+                    'like',
+                    '%' . $search . '%'
+                );
+            });
+        }
+
+        // Status
+        if (
+            $request->filled('status') &&
+            in_array(
+                $request->status,
+                [
+                    'active',
+                    'pending',
+                    'rejected',
+                ]
+            )
+        ) {
+            $query->where(
+                'status',
+                $request->status
+            );
+        }
+
+        $properties = $query
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        $totalProperties = Property::count();
+
+        $activeProperties = Property::where(
+            'status',
+            'active'
+        )->count();
+
+        $pendingProperties = Property::where(
+            'status',
+            'pending'
+        )->count();
+
+        $rejectedProperties = Property::where(
+            'status',
+            'rejected'
+        )->count();
+
+        return view(
+            'admin.properties.index',
             compact(
-                'properties'
+                'properties',
+                'totalProperties',
+                'activeProperties',
+                'pendingProperties',
+                'rejectedProperties'
             )
         );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | CREATE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // ADMIN CREATE PROPERTY
+    // ============================================================
 
-    public function create()
+    public function adminCreate()
     {
-        $facilities =
-            Facility::all();
+        $mitras = User::role('mitra')
+            ->orderBy('name')
+            ->get();
+
+        $facilities = Facility::orderBy('name')
+            ->get();
 
         return view(
-            'properties.create',
+            'admin.properties.create',
             compact(
+                'mitras',
                 'facilities'
             )
         );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | STORE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // ADMIN STORE PROPERTY
+    // ============================================================
 
-    public function store(Request $request)
+    public function adminStore(Request $request)
     {
-        $validated =
-            $request->validate([
-
-                'name' =>
-                    'required|string|max:255',
-
-                'description' =>
-                    'nullable|string',
-
-                'type' =>
-                    'required|in:guesthouse,kost_harian,villa',
-
-                'address' =>
-                    'required|string',
-
-                'city' =>
-                    'required|string',
-
-                'latitude' =>
-                    'nullable|numeric',
-
-                'longitude' =>
-                    'nullable|numeric',
-
-                'bedroom_count' =>
-                    'required|integer|min:1',
-
-                'guest_capacity' =>
-                    'required|integer|min:1',
-
-                'price_per_night' =>
-                    'required|numeric|min:0',
-
-                'star_rating' =>
-                    'required|integer|min:1|max:5',
-
-                'management_type' =>
-                    'required|in:mandiri,dikelola',
-
-                'cover_image' =>
-                    'nullable|image|max:2048',
-
-                'photos' =>
-                    'nullable|array',
-
-                'photos.*' =>
-                    'image|max:2048',
-
-                'facilities' =>
-                    'nullable|array',
-
-                'facilities.*' =>
-                    'exists:facilities,id',
-            ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | COVER IMAGE
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $request->hasFile(
-                'cover_image'
-            )
-        ) {
-
-            $validated['cover_image'] =
-                $request
-                    ->file('cover_image')
-                    ->store(
-                        'properties',
-                        'public'
-                    );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | MITRA
-        |--------------------------------------------------------------------------
-        */
-
-        $validated['mitra_id'] =
-            $request->user()->id;
-
-        /*
-        |--------------------------------------------------------------------------
-        | STATUS
-        |--------------------------------------------------------------------------
-        */
-
-        $validated['status'] =
-            'pending';
-
-        /*
-        |--------------------------------------------------------------------------
-        | FOTO GALERI
-        |--------------------------------------------------------------------------
-        */
-
-        unset(
-            $validated['photos']
+        $validated = $this->validateProperty(
+            $request,
+            true
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE PROPERTY
-        |--------------------------------------------------------------------------
-        */
-
-        $property =
-            Property::create(
-                $validated
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | SIMPAN FOTO GALERI
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $request->hasFile(
-                'photos'
+        $mitra = User::role('mitra')
+            ->where(
+                'id',
+                $validated['mitra_id']
             )
-        ) {
+            ->first();
 
-            foreach (
-                $request->file('photos')
-                as $index => $photo
-            ) {
-
-                $path =
-                    $photo->store(
-                        'properties',
-                        'public'
-                    );
-
-                PropertyImage::create([
-                    'property_id' =>
-                        $property->id,
-
-                    'path' =>
-                        $path,
-
-                    'sort_order' =>
-                        $index,
-                ]);
-            }
+        if (!$mitra) {
+            return back()
+                ->withErrors([
+                    'mitra_id' =>
+                        'Mitra yang dipilih tidak valid.',
+                ])
+                ->withInput();
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | FACILITIES
-        |--------------------------------------------------------------------------
-        */
+        // Properti yang dibuat admin langsung aktif
+        $validated['status'] = 'active';
 
-        $allFacilities =
-            Facility::pluck('id');
-
-        $syncData = [];
-
-        foreach (
-            $allFacilities
-            as $facilityId
-        ) {
-
-            $syncData[$facilityId] = [
-                'is_available' =>
-                    in_array(
-                        $facilityId,
-                        $request->input(
-                            'facilities',
-                            []
-                        )
-                    ),
-            ];
-        }
-
-        $property
-            ->facilities()
-            ->sync(
-                $syncData
-            );
+        $this->saveProperty(
+            $request,
+            $validated
+        );
 
         return redirect()
-            ->route(
-                'mitra.properties.index'
-            )
+            ->route('admin.properties.index')
             ->with(
                 'success',
-                'Properti berhasil ditambahkan, menunggu verifikasi admin.'
+                'Properti berhasil ditambahkan dan langsung aktif.'
             );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | SHOW
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // SHOW
+    // ============================================================
 
-    public function show(
-        Property $property
-    ) {
-
+    public function show(Property $property)
+    {
         $property->load([
             'facilities',
             'mitra',
             'images',
             'reviews.customer',
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | RATING TAMU
-        |--------------------------------------------------------------------------
-        */
 
         $property->loadAvg(
             'reviews',
@@ -714,98 +418,73 @@ class PropertyController extends Controller
             'reviews'
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | RECOMMENDED
-        |--------------------------------------------------------------------------
-        */
+        $recommendations = Property::where(
+            'status',
+            'active'
+        )
+        ->where(
+            'id',
+            '!=',
+            $property->id
+        )
+        ->where(
+            'city',
+            $property->city
+        )
+        ->latest()
+        ->take(5)
+        ->get();
 
-        $recommendedProperties =
-            Property::query()
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->where(
-                    'id',
-                    '!=',
-                    $property->id
-                )
-                ->where(
-                    'city',
-                    $property->city
-                )
-                ->latest()
-                ->take(5)
-                ->get();
+        if ($recommendations->count() < 5) {
+            $additional = Property::where(
+                'status',
+                'active'
+            )
+            ->where(
+                'id',
+                '!=',
+                $property->id
+            )
+            ->whereNotIn(
+                'id',
+                $recommendations->pluck('id')
+            )
+            ->latest()
+            ->take(
+                5 - $recommendations->count()
+            )
+            ->get();
 
-        if (
-            $recommendedProperties->count()
-            < 5
-        ) {
-
-            $remaining =
-                5 -
-                $recommendedProperties->count();
-
-            $additionalProperties =
-                Property::query()
-                    ->where(
-                        'status',
-                        'active'
-                    )
-                    ->where(
-                        'id',
-                        '!=',
-                        $property->id
-                    )
-                    ->whereNotIn(
-                        'id',
-                        $recommendedProperties
-                            ->pluck('id')
-                    )
-                    ->latest()
-                    ->take($remaining)
-                    ->get();
-
-            $recommendedProperties =
-                $recommendedProperties
-                    ->concat(
-                        $additionalProperties
-                    );
+            $recommendations = $recommendations
+                ->concat($additional);
         }
 
         return view(
             'properties.show',
             compact(
                 'property',
-                'recommendedProperties'
+                'recommendations'
             )
         );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | EDIT
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // EDIT MITRA
+    // ============================================================
 
-    public function edit(
-        Property $property
-    ) {
-
+    public function edit(Property $property)
+    {
         $this->authorizeOwner(
             $property
         );
 
-        $facilities =
-            Facility::all();
+        $facilities = Facility::orderBy('name')->get();
 
-        $property->load(
+        $property->load([
             'facilities',
-            'images'
-        );
+            'images',
+        ]);
 
         return view(
             'properties.edit',
@@ -817,193 +496,30 @@ class PropertyController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // UPDATE MITRA
+    // ============================================================
 
     public function update(
         Request $request,
         Property $property
     ) {
-
         $this->authorizeOwner(
             $property
         );
 
-        $validated =
-            $request->validate([
-
-                'name' =>
-                    'required|string|max:255',
-
-                'description' =>
-                    'nullable|string',
-
-                'type' =>
-                    'required|in:guesthouse,kost_harian,villa',
-
-                'address' =>
-                    'required|string',
-
-                'city' =>
-                    'required|string',
-
-                'latitude' =>
-                    'nullable|numeric',
-
-                'longitude' =>
-                    'nullable|numeric',
-
-                'bedroom_count' =>
-                    'required|integer|min:1',
-
-                'guest_capacity' =>
-                    'required|integer|min:1',
-
-                'price_per_night' =>
-                    'required|numeric|min:0',
-
-                'star_rating' =>
-                    'required|integer|min:1|max:5',
-
-                'management_type' =>
-                    'required|in:mandiri,dikelola',
-
-                'cover_image' =>
-                    'nullable|image|max:2048',
-
-                'photos' =>
-                    'nullable|array',
-
-                'photos.*' =>
-                    'image|max:2048',
-
-                'facilities' =>
-                    'nullable|array',
-
-                'facilities.*' =>
-                    'exists:facilities,id',
-            ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | COVER
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $request->hasFile(
-                'cover_image'
-            )
-        ) {
-
-            $validated['cover_image'] =
-                $request
-                    ->file('cover_image')
-                    ->store(
-                        'properties',
-                        'public'
-                    );
-        }
-
-        unset(
-            $validated['photos']
+        $validated = $this->validateProperty(
+            $request
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE PROPERTY
-        |--------------------------------------------------------------------------
-        */
-
-        $property->update(
+        $this->updateProperty(
+            $request,
+            $property,
             $validated
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | GALERI
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $request->hasFile(
-                'photos'
-            )
-        ) {
-
-            $nextOrder =
-                (int)
-                $property
-                    ->images()
-                    ->max(
-                        'sort_order'
-                    ) + 1;
-
-            foreach (
-                $request->file('photos')
-                as $index => $photo
-            ) {
-
-                $path =
-                    $photo->store(
-                        'properties',
-                        'public'
-                    );
-
-                PropertyImage::create([
-                    'property_id' =>
-                        $property->id,
-
-                    'path' =>
-                        $path,
-
-                    'sort_order' =>
-                        $nextOrder + $index,
-                ]);
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | FACILITIES
-        |--------------------------------------------------------------------------
-        */
-
-        $allFacilities =
-            Facility::pluck('id');
-
-        $syncData = [];
-
-        foreach (
-            $allFacilities
-            as $facilityId
-        ) {
-
-            $syncData[$facilityId] = [
-                'is_available' =>
-                    in_array(
-                        $facilityId,
-                        $request->input(
-                            'facilities',
-                            []
-                        )
-                    ),
-            ];
-        }
-
-        $property
-            ->facilities()
-            ->sync(
-                $syncData
-            );
-
         return redirect()
-            ->route(
-                'mitra.properties.index'
-            )
+            ->route('mitra.properties.index')
             ->with(
                 'success',
                 'Properti berhasil diperbarui.'
@@ -1011,19 +527,24 @@ class PropertyController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE IMAGE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // DESTROY IMAGE
+    // ============================================================
 
     public function destroyImage(
         PropertyImage $image
     ) {
+        $property = $image->property;
 
         $this->authorizeOwner(
-            $image->property
+            $property
         );
+
+        if ($image->path) {
+            Storage::disk('public')->delete(
+                $image->path
+            );
+        }
 
         $image->delete();
 
@@ -1035,26 +556,34 @@ class PropertyController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE PROPERTY
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // DESTROY
+    // ============================================================
 
-    public function destroy(
-        Property $property
-    ) {
-
+    public function destroy(Property $property)
+    {
         $this->authorizeOwner(
             $property
         );
 
+        if ($property->cover_image) {
+            Storage::disk('public')->delete(
+                $property->cover_image
+            );
+        }
+
+        foreach ($property->images as $image) {
+            if ($image->path) {
+                Storage::disk('public')->delete(
+                    $image->path
+                );
+            }
+        }
+
         $property->delete();
 
         return redirect()
-            ->route(
-                'mitra.properties.index'
-            )
+            ->route('mitra.properties.index')
             ->with(
                 'success',
                 'Properti berhasil dihapus.'
@@ -1062,16 +591,12 @@ class PropertyController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | APPROVE
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // APPROVE
+    // ============================================================
 
-    public function approve(
-        Property $property
-    ) {
-
+    public function approve(Property $property)
+    {
         $property->update([
             'status' => 'active',
         ]);
@@ -1079,21 +604,17 @@ class PropertyController extends Controller
         return back()
             ->with(
                 'success',
-                'Properti disetujui dan sekarang tayang.'
+                'Properti berhasil disetujui.'
             );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | REJECT
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // REJECT
+    // ============================================================
 
-    public function reject(
-        Property $property
-    ) {
-
+    public function reject(Property $property)
+    {
         $property->update([
             'status' => 'rejected',
         ]);
@@ -1101,34 +622,309 @@ class PropertyController extends Controller
         return back()
             ->with(
                 'success',
-                'Properti ditolak.'
+                'Properti berhasil ditolak.'
             );
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | OWNER AUTHORIZATION
-    |--------------------------------------------------------------------------
-    */
+    // ============================================================
+    // VALIDATION
+    // ============================================================
+
+    private function validateProperty(
+        Request $request,
+        bool $isAdmin = false
+    ) {
+        $rules = [
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'description' => [
+                'required',
+                'string',
+            ],
+
+            'type' => [
+                'required',
+                Rule::in([
+                    'guesthouse',
+                    'kost_harian',
+                    'villa',
+                ]),
+            ],
+
+            'address' => [
+                'required',
+                'string',
+                'max:500',
+            ],
+
+            'city' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+
+            'latitude' => [
+                'nullable',
+                'numeric',
+            ],
+
+            'longitude' => [
+                'nullable',
+                'numeric',
+            ],
+
+            'bedroom_count' => [
+                'required',
+                'integer',
+                'min:1',
+            ],
+
+            'guest_capacity' => [
+                'required',
+                'integer',
+                'min:1',
+            ],
+
+            'price_per_night' => [
+                'required',
+                'numeric',
+                'min:0',
+            ],
+
+            'star_rating' => [
+                'required',
+                'integer',
+                'between:1,5',
+            ],
+
+            'management_type' => [
+                'required',
+                Rule::in([
+                    'mandiri',
+                    'dikelola',
+                ]),
+            ],
+
+            'cover_image' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+
+            'photos' => [
+                'nullable',
+                'array',
+            ],
+
+            'photos.*' => [
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+
+            'facilities' => [
+                'nullable',
+                'array',
+            ],
+
+            'facilities.*' => [
+                'exists:facilities,id',
+            ],
+        ];
+
+        if ($isAdmin) {
+            $rules['mitra_id'] = [
+                'required',
+                'integer',
+                'exists:users,id',
+            ];
+        }
+
+        return $request->validate($rules);
+    }
+
+
+    // ============================================================
+    // SAVE PROPERTY
+    // ============================================================
+
+    private function saveProperty(
+        Request $request,
+        array $validated
+    ) {
+        $propertyData = collect($validated)
+            ->except([
+                'cover_image',
+                'photos',
+                'facilities',
+            ])
+            ->toArray();
+
+        if ($request->hasFile('cover_image')) {
+            $propertyData['cover_image'] =
+                $request
+                    ->file('cover_image')
+                    ->store(
+                        'properties',
+                        'public'
+                    );
+        }
+
+        $property = Property::create(
+            $propertyData
+        );
+
+        $this->syncFacilities(
+            $property,
+            $request->input(
+                'facilities',
+                []
+            )
+        );
+
+        if ($request->hasFile('photos')) {
+            foreach (
+                $request->file('photos')
+                as $index => $photo
+            ) {
+                $path = $photo->store(
+                    'properties/gallery',
+                    'public'
+                );
+
+                $property->images()->create([
+                    'path' => $path,
+                    'sort_order' => $index,
+                ]);
+            }
+        }
+
+        return $property;
+    }
+
+
+    // ============================================================
+    // UPDATE PROPERTY
+    // ============================================================
+
+    private function updateProperty(
+        Request $request,
+        Property $property,
+        array $validated
+    ) {
+        $propertyData = collect($validated)
+            ->except([
+                'cover_image',
+                'photos',
+                'facilities',
+            ])
+            ->toArray();
+
+        if ($request->hasFile('cover_image')) {
+            if ($property->cover_image) {
+                Storage::disk('public')->delete(
+                    $property->cover_image
+                );
+            }
+
+            $propertyData['cover_image'] =
+                $request
+                    ->file('cover_image')
+                    ->store(
+                        'properties',
+                        'public'
+                    );
+        }
+
+        $property->update(
+            $propertyData
+        );
+
+        $this->syncFacilities(
+            $property,
+            $request->input(
+                'facilities',
+                []
+            )
+        );
+
+        if ($request->hasFile('photos')) {
+            $startOrder = $property
+                ->images()
+                ->max('sort_order');
+
+            $startOrder = $startOrder === null
+                ? 0
+                : $startOrder + 1;
+
+            foreach (
+                $request->file('photos')
+                as $index => $photo
+            ) {
+                $path = $photo->store(
+                    'properties/gallery',
+                    'public'
+                );
+
+                $property->images()->create([
+                    'path' => $path,
+                    'sort_order' => $startOrder + $index,
+                ]);
+            }
+        }
+    }
+
+
+    // ============================================================
+    // SYNC FACILITIES
+    // ============================================================
+
+    private function syncFacilities(
+        Property $property,
+        array $selectedFacilities
+    ) {
+        $allFacilities = Facility::pluck(
+            'id'
+        );
+
+        $syncData = [];
+
+        foreach ($allFacilities as $facilityId) {
+            $syncData[$facilityId] = [
+                'is_available' =>
+                    in_array(
+                        $facilityId,
+                        $selectedFacilities
+                    ),
+            ];
+        }
+
+        $property->facilities()->sync(
+            $syncData
+        );
+    }
+
+
+    // ============================================================
+    // AUTHORIZE OWNER
+    // ============================================================
 
     private function authorizeOwner(
         Property $property
     ) {
-
-        $user =
-            request()->user();
+        $user = auth()->user();
 
         if (
             $user->hasRole('mitra') &&
-            $property->mitra_id !==
-                $user->id
+            $property->mitra_id !== $user->id
         ) {
-
-            abort(
-                403,
-                'Anda tidak memiliki akses ke properti ini.'
-            );
+            abort(403);
         }
     }
 }

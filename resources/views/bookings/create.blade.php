@@ -8,10 +8,10 @@
     <div class="text-sm text-gray-500 mb-4">
         <a href="{{ route('properties.show', $property) }}" class="text-brand-blue hover:underline">{{ $property->name }}</a>
         <span class="mx-1">/</span>
-        <span>Booking</span>
+        <span>Data Tamu & Booking</span>
     </div>
 
-    <h1 class="text-2xl font-extrabold text-navy-900 mb-6">Lengkapi Detail Booking</h1>
+    <h1 class="text-2xl font-extrabold text-navy-900 mb-6">Lengkapi Data Tamu & Booking</h1>
 
     @if ($errors->any())
         <div class="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4">
@@ -28,6 +28,75 @@
             @csrf
             <input type="hidden" name="property_id" value="{{ $property->id }}">
 
+            {{-- =========================================================
+                 DATA TAMU
+            ========================================================== --}}
+            <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
+                <div>
+                    <h2 class="text-base font-extrabold text-navy-900">Data Tamu</h2>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Masukkan data tamu yang akan menginap.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">
+                        Nama Lengkap
+                    </label>
+                    <input
+                        type="text"
+                        name="guest_name"
+                        required
+                        value="{{ old('guest_name', auth()->user()->name) }}"
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue"
+                        placeholder="Masukkan nama lengkap tamu"
+                    >
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">
+                            Nomor HP / WhatsApp
+                        </label>
+                        <input
+                            type="text"
+                            name="guest_phone"
+                            required
+                            value="{{ old('guest_phone', auth()->user()->phone ?? '') }}"
+                            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue"
+                            placeholder="08xxxxxxxxxx"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            name="guest_email"
+                            value="{{ old('guest_email', auth()->user()->email) }}"
+                            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue"
+                            placeholder="nama@email.com"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">
+                        Alamat
+                    </label>
+                    <textarea
+                        name="guest_address"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue"
+                        placeholder="Masukkan alamat tamu">{{ old('guest_address') }}</textarea>
+                </div>
+            </div>
+
+            {{-- =========================================================
+                 DETAIL BOOKING
+            ========================================================== --}}
             <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -55,13 +124,49 @@
                 </div>
             </div>
 
+            {{-- =========================================================
+                 SYARAT & KETENTUAN BOOKING
+            ========================================================== --}}
+            <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
+                <div>
+                    <h2 class="text-base font-extrabold text-navy-900">Syarat & Ketentuan Booking</h2>
+                    <p class="text-xs text-gray-500 mt-1">Harap baca sebelum melanjutkan reservasi.</p>
+                </div>
+
+                <div class="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600 space-y-2 leading-6">
+                    <p>• Booking menggunakan sistem pembayaran <strong>DP 50%</strong> dari total harga.</p>
+                    <p>• Sisa <strong>50%</strong> dapat dilunasi <strong>kapan saja setelah DP berhasil</strong> dan wajib diselesaikan sebelum check-in.</p>
+                    <p>• Jika pelunasan tidak dilakukan sampai batas waktu, booking dapat dibatalkan sesuai ketentuan.</p>
+                    <p>• Jika booking dibatalkan karena tidak melakukan pelunasan, refund DP diberikan setelah dikurangi <strong>20% dari nilai DP</strong>.</p>
+                    <p>• Pembayaran dilakukan melalui <strong>QRIS</strong> yang tersedia pada halaman detail booking.</p>
+                </div>
+
+                <label class="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        name="terms_accepted"
+                        value="1"
+                        required
+                        {{ old('terms_accepted') ? 'checked' : '' }}
+                        class="mt-1 h-4 w-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue"
+                    >
+                    <span class="text-sm text-gray-700 leading-6">
+                        Saya telah membaca, memahami, dan menyetujui Syarat & Ketentuan Booking.
+                    </span>
+                </label>
+
+                @error('terms_accepted')
+                    <p class="text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-navy-900">
-                💳 Pembayaran dilakukan via <strong>QRIS</strong> setelah booking dibuat. Kamu akan diarahkan ke halaman pembayaran.
+                💳 Pembayaran awal adalah <strong>DP 50%</strong> melalui <strong>QRIS</strong> setelah booking dibuat. Sisa pembayaran dapat dilunasi kapan saja setelah DP berhasil dan wajib lunas sebelum check-in.
             </div>
 
             <button type="submit"
                     class="w-full bg-brand-blue hover:bg-blue-700 transition text-white font-semibold py-3.5 rounded-lg">
-                Lanjutkan Booking
+                Buat Booking & Bayar DP 50%
             </button>
         </form>
 
@@ -91,7 +196,15 @@
                         <span>Estimasi Total</span>
                         <span id="summary-total">Rp 0</span>
                     </div>
-                    <p class="text-[11px] text-gray-400">*Estimasi awal, total final ditentukan sistem saat booking disimpan.</p>
+                    <div class="flex justify-between text-sm text-blue-700 font-bold pt-2">
+                        <span>DP 50%</span>
+                        <span id="summary-dp">Rp 0</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-500">
+                        <span>Sisa Pelunasan</span>
+                        <span id="summary-remaining">Rp 0</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400">*Estimasi awal. Total final ditentukan sistem saat booking disimpan.</p>
                 </div>
             </div>
         </div>
@@ -106,6 +219,8 @@
         const checkOut = document.getElementById('check_out');
         const nightsEl = document.getElementById('summary-nights');
         const totalEl = document.getElementById('summary-total');
+        const dpEl = document.getElementById('summary-dp');
+        const remainingEl = document.getElementById('summary-remaining');
 
         function formatRupiah(num) {
             return 'Rp ' + num.toLocaleString('id-ID');
@@ -118,11 +233,19 @@
             const nights = Math.round((outDate - inDate) / (1000 * 60 * 60 * 24));
 
             if (nights > 0) {
+                const total = nights * pricePerNight;
+                const dp = total * 0.5;
+                const remaining = total - dp;
+
                 nightsEl.textContent = nights + ' malam';
-                totalEl.textContent = formatRupiah(nights * pricePerNight);
+                totalEl.textContent = formatRupiah(total);
+                dpEl.textContent = formatRupiah(dp);
+                remainingEl.textContent = formatRupiah(remaining);
             } else {
                 nightsEl.textContent = '-';
                 totalEl.textContent = 'Rp 0';
+                dpEl.textContent = 'Rp 0';
+                remainingEl.textContent = 'Rp 0';
             }
         }
 

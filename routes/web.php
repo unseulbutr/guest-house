@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BookingExtensionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FacilityController;
 use App\Http\Controllers\ProfileController;
@@ -32,37 +33,18 @@ Route::get(
 
 // ============================================================
 // PUBLIC
-// Customer, Mitra, Admin, Super Admin, dan tamu
 // ============================================================
 
-/**
- * HOMEPAGE
- *
- * PENTING:
- * Route ini selalu menuju PropertyController@index.
- *
- * Tidak lagi mengecek role.
- *
- * Jadi mitra juga akan melihat homepage GuestHouse.
- */
 Route::get(
     '/',
     [PropertyController::class, 'index']
 )->name('home');
 
-
-/**
- * DETAIL PROPERTI
- */
 Route::get(
     '/properties/{property}',
     [PropertyController::class, 'show']
 )->name('properties.show');
 
-
-/**
- * ARTIKEL
- */
 Route::get(
     '/artikel',
     [ArticleController::class, 'index']
@@ -90,7 +72,7 @@ Route::post(
 
 
 // ============================================================
-// WEBHOOK PEMBAYARAN QRIS
+// WEBHOOK PEMBAYARAN
 // ============================================================
 
 Route::patch(
@@ -105,89 +87,8 @@ Route::patch(
 
 Route::middleware([
     'auth',
-    'active'
+    'active',
 ])->group(function () {
-
-/*
-|--------------------------------------------------------------------------
-| BOOKING EXTENSIONS
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware(['role:customer'])
-    ->prefix('customer')
-    ->name('customer.')
-    ->group(function () {
-
-        Route::get(
-            'bookings/{booking}/extension',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'create'
-            ]
-        )->name('bookings.extension.create');
-
-
-        Route::post(
-            'bookings/{booking}/extension',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'store'
-            ]
-        )->name('bookings.extension.store');
-
-
-        Route::patch(
-            'booking-extensions/{extension}/cancel',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'cancel'
-            ]
-        )->name('booking-extensions.cancel');
-    });
-
-
-Route::middleware(['role:mitra'])
-    ->prefix('mitra')
-    ->name('mitra.')
-    ->group(function () {
-
-        Route::get(
-            'booking-extensions',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'indexForMitra'
-            ]
-        )->name('booking-extensions.index');
-
-
-        Route::get(
-            'booking-extensions/{extension}',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'show'
-            ]
-        )->name('booking-extensions.show');
-
-
-        Route::patch(
-            'booking-extensions/{extension}/approve',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'approve'
-            ]
-        )->name('booking-extensions.approve');
-
-
-        Route::patch(
-            'booking-extensions/{extension}/reject',
-            [
-                \App\Http\Controllers\BookingExtensionController::class,
-                'reject'
-            ]
-        )->name('booking-extensions.reject');
-    });
-
 
     // ========================================================
     // DASHBOARD
@@ -225,87 +126,11 @@ Route::middleware(['role:mitra'])
 
 
     // ========================================================
-    // MITRA
-    // ========================================================
-
-    Route::middleware([
-        'role:mitra'
-    ])
-    ->prefix('mitra')
-    ->name('mitra.')
-    ->group(function () {
-
-        /**
-         * ====================================================
-         * PROPERTI SAYA
-         * ====================================================
-         *
-         * SEBELUMNYA:
-         * PropertyController@index
-         *
-         * SEKARANG:
-         * PropertyController@mitraIndex
-         *
-         * Jadi halaman ini terpisah dari homepage.
-         */
-        Route::get(
-            'properties',
-            [PropertyController::class, 'mitraIndex']
-        )->name('properties.index');
-
-
-        /**
-         * CRUD PROPERTI MITRA
-         *
-         * index dan show tidak dibuat oleh resource
-         * karena sudah kita atur sendiri.
-         */
-        Route::resource(
-            'properties',
-            PropertyController::class
-        )->except([
-            'index',
-            'show'
-        ]);
-
-
-        // ====================================================
-        // BOOKING MASUK
-        // ====================================================
-
-        Route::get(
-            'bookings',
-            [BookingController::class, 'index']
-        )->name('bookings.index');
-
-        Route::get(
-            'bookings/{booking}',
-            [BookingController::class, 'show']
-        )->name('bookings.show');
-
-        Route::patch(
-            'bookings/{booking}/confirm',
-            [BookingController::class, 'confirm']
-        )->name('bookings.confirm');
-
-        Route::patch(
-            'bookings/{booking}/reject',
-            [BookingController::class, 'reject']
-        )->name('bookings.reject');
-
-         Route::delete(
-            'properties/images/{image}', 
-            [PropertyController::class, 'destroyImage'])
-            ->name('properties.images.destroy');
-    });
-
-
-    // ========================================================
     // CUSTOMER
     // ========================================================
 
     Route::middleware([
-        'role:customer'
+        'role:customer',
     ])
     ->prefix('customer')
     ->name('customer.')
@@ -346,6 +171,41 @@ Route::middleware(['role:mitra'])
             [BookingController::class, 'simulatePay']
         )->name('bookings.simulate-pay');
 
+        Route::patch(
+    'bookings/{booking}/simulate-settlement',
+    [BookingController::class, 'simulateSettlement']
+)->name('bookings.simulate-settlement');
+
+
+        // ====================================================
+        // BOOKING EXTENSION
+        // ====================================================
+
+        Route::get(
+            'bookings/{booking}/extension',
+            [BookingExtensionController::class, 'create']
+        )->name('booking-extensions.create');
+
+        Route::post(
+            'bookings/{booking}/extension',
+            [BookingExtensionController::class, 'store']
+        )->name('booking-extensions.store');
+
+        Route::patch(
+            'booking-extensions/{extension}/cancel',
+            [BookingExtensionController::class, 'cancel']
+        )->name('booking-extensions.cancel');
+
+        Route::get(
+            'booking-extensions/{extension}/payment',
+            [BookingExtensionController::class, 'payment']
+        )->name('booking-extensions.payment');
+
+        Route::patch(
+            'booking-extensions/{extension}/simulate-pay',
+            [BookingExtensionController::class, 'simulatePay']
+        )->name('booking-extensions.simulate-pay');
+
 
         // ====================================================
         // SAVED / WISHLIST
@@ -364,28 +224,115 @@ Route::middleware(['role:mitra'])
 
 
     // ========================================================
+    // MITRA
+    // ========================================================
+
+    Route::middleware([
+        'role:mitra',
+    ])
+    ->prefix('mitra')
+    ->name('mitra.')
+    ->group(function () {
+
+        Route::get(
+            'properties',
+            [PropertyController::class, 'mitraIndex']
+        )->name('properties.index');
+
+        Route::resource(
+            'properties',
+            PropertyController::class
+        )->except([
+            'index',
+            'show',
+        ]);
+
+        Route::delete(
+            'properties/images/{image}',
+            [PropertyController::class, 'destroyImage']
+        )->name('properties.images.destroy');
+
+
+        // ====================================================
+        // BOOKING MASUK
+        // ====================================================
+
+        Route::get(
+            'bookings',
+            [BookingController::class, 'index']
+        )->name('bookings.index');
+
+        Route::get(
+            'bookings/{booking}',
+            [BookingController::class, 'show']
+        )->name('bookings.show');
+
+        Route::patch(
+            'bookings/{booking}/confirm',
+            [BookingController::class, 'confirm']
+        )->name('bookings.confirm');
+
+        Route::patch(
+            'bookings/{booking}/reject',
+            [BookingController::class, 'reject']
+        )->name('bookings.reject');
+
+
+        // ====================================================
+        // BOOKING EXTENSION
+        // ====================================================
+
+        Route::get(
+            'booking-extensions',
+            [BookingExtensionController::class, 'indexForMitra']
+        )->name('booking-extensions.index');
+
+        Route::get(
+            'booking-extensions/{extension}',
+            [BookingExtensionController::class, 'show']
+        )->name('booking-extensions.show');
+
+        Route::patch(
+            'booking-extensions/{extension}/approve',
+            [BookingExtensionController::class, 'approve']
+        )->name('booking-extensions.approve');
+
+        Route::patch(
+            'booking-extensions/{extension}/reject',
+            [BookingExtensionController::class, 'reject']
+        )->name('booking-extensions.reject');
+    });
+
+
+    // ========================================================
     // ADMIN & SUPER ADMIN
     // ========================================================
 
     Route::middleware([
-        'role:admin|super_admin'
+        'role:admin|super_admin',
     ])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
 
         // ====================================================
-        // FACILITIES
+        // PROPERTI ADMIN
         // ====================================================
 
-        Route::resource(
-            'facilities',
-            FacilityController::class
-        )->except([
-            'show',
-            'create',
-            'store'
-        ]);
+        Route::get(
+            'properties',
+            [PropertyController::class, 'adminIndex']
+        )->name('properties.index');
+
+        Route::get(
+            'properties/create',
+            [PropertyController::class, 'adminCreate']
+        )->name('properties.create');
+
+        Route::post(
+            'properties',
+            [PropertyController::class, 'adminStore']
+        )->name('properties.store');
 
 
         // ====================================================
@@ -401,6 +348,20 @@ Route::middleware(['role:mitra'])
             'properties/{property}/reject',
             [PropertyController::class, 'reject']
         )->name('properties.reject');
+
+
+        // ====================================================
+        // FACILITIES
+        // ====================================================
+
+        Route::resource(
+            'facilities',
+            FacilityController::class
+        )->except([
+            'show',
+            'create',
+            'store',
+        ]);
 
 
         // ====================================================
@@ -453,18 +414,18 @@ Route::middleware(['role:mitra'])
         )->name('bookings.show');
 
         Route::patch(
-    'bookings/{booking}/refund',
-    [BookingController::class, 'processRefund']
-)->name('bookings.refund');
+            'bookings/{booking}/refund',
+            [BookingController::class, 'processRefund']
+        )->name('bookings.refund');
     });
 
 
     // ========================================================
-    // SUPER ADMIN - FACILITY
+    // SUPER ADMIN - FACILITIES
     // ========================================================
 
     Route::middleware([
-        'role:super_admin'
+        'role:super_admin',
     ])
     ->prefix('admin/facilities')
     ->name('admin.facilities.')
@@ -487,7 +448,7 @@ Route::middleware(['role:mitra'])
     // ========================================================
 
     Route::middleware([
-        'role:super_admin'
+        'role:super_admin',
     ])
     ->prefix('admin/users')
     ->name('admin.users.')
@@ -520,7 +481,7 @@ Route::middleware(['role:mitra'])
 
         Route::patch(
             '/{user}/toggle-active',
-            [UserController::class, 'toggleActive']
+            [UserController::class, 'toggle-active']
         )->name('toggle-active');
     });
 
@@ -530,7 +491,7 @@ Route::middleware(['role:mitra'])
     // ========================================================
 
     Route::middleware([
-        'role:super_admin'
+        'role:super_admin',
     ])
     ->prefix('admin/settings')
     ->name('admin.settings.')

@@ -18,11 +18,21 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | ADMIN / SUPER ADMIN
+        | SUPER ADMIN
         |--------------------------------------------------------------------------
         */
 
-        if ($user->hasAnyRole(['admin', 'super_admin'])) {
+        if ($user->hasRole('super_admin')) {
+            return $this->superAdminDashboard();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADMIN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($user->hasRole('admin')) {
             return $this->adminDashboard();
         }
 
@@ -118,6 +128,17 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | ALIAS UNTUK ADMIN BLADE
+        |--------------------------------------------------------------------------
+        */
+
+        $totalProperties = $stats['total_properties'];
+        $activeProperties = $stats['active_properties'];
+        $pendingPropertiesCount = $stats['pending_properties'];
+
+
+        /*
+        |--------------------------------------------------------------------------
         | USER STATISTICS
         |--------------------------------------------------------------------------
         */
@@ -163,10 +184,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | MONTHLY REVENUE
         |--------------------------------------------------------------------------
-        |
-        | Menggunakan SQLite karena project kamu sebelumnya juga menggunakan
-        | strftime() untuk chart Mitra.
-        |
         */
 
         $monthlyRevenueQuery = Booking::where(
@@ -209,7 +226,7 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | BOOKING STATUS DISTRIBUTION
+        | BOOKING STATUS
         |--------------------------------------------------------------------------
         */
 
@@ -271,12 +288,297 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | RETURN VIEW
+        | RETURN ADMIN VIEW
         |--------------------------------------------------------------------------
         */
 
         return view(
             'dashboard.admin',
+            compact(
+                'stats',
+                'totalProperties',
+                'activeProperties',
+                'pendingPropertiesCount',
+                'recentBookings',
+                'pendingProperties',
+                'monthlyRevenue',
+                'monthLabels',
+                'bookingStatus',
+                'customerCount',
+                'mitraCount'
+            )
+        );
+    }
+
+
+    // =========================================================================
+    // SUPER ADMIN
+    // =========================================================================
+
+    private function superAdminDashboard()
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | PAID BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
+        $paidBookings = Booking::where(
+            'payment_status',
+            'paid'
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PLATFORM STATISTICS
+        |--------------------------------------------------------------------------
+        */
+
+        $stats = [
+            'total_properties' => Property::count(),
+
+            'pending_properties' => Property::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'active_properties' => Property::where(
+                'status',
+                'active'
+            )->count(),
+
+            'total_bookings' => Booking::count(),
+
+            'pending_bookings' => Booking::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'confirmed_bookings' => Booking::where(
+                'status',
+                'confirmed'
+            )->count(),
+
+            'completed_bookings' => Booking::where(
+                'status',
+                'completed'
+            )->count(),
+
+            'cancelled_bookings' => Booking::where(
+                'status',
+                'cancelled'
+            )->count(),
+
+            'gross_revenue' => (clone $paidBookings)
+                ->sum('total_price'),
+
+            'total_commission' => (clone $paidBookings)
+                ->sum('commission_amount'),
+
+            'total_mitra_payout' => (clone $paidBookings)
+                ->sum('mitra_payout_amount'),
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | USER STATISTICS
+        |--------------------------------------------------------------------------
+        */
+
+        $totalUserCount = User::count();
+
+        $customerCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'customer');
+            }
+        )->count();
+
+        $mitraCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'mitra');
+            }
+        )->count();
+
+        $adminCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'admin');
+            }
+        )->count();
+
+        $superAdminCount = User::whereHas(
+            'roles',
+            function ($query) {
+                $query->where('name', 'super_admin');
+            }
+        )->count();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | USER TERBARU
+        |--------------------------------------------------------------------------
+        */
+
+        $latestUsers = User::latest()
+            ->take(5)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROPERTI TERBARU
+        |--------------------------------------------------------------------------
+        */
+
+        $latestProperties = Property::with([
+            'mitra',
+        ])
+            ->latest()
+            ->take(5)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTH LABELS
+        |--------------------------------------------------------------------------
+        */
+
+        $monthLabels = [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des',
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTHLY REVENUE
+        |--------------------------------------------------------------------------
+        */
+
+        $monthlyRevenueQuery = Booking::where(
+            'payment_status',
+            'paid'
+        )
+            ->whereYear(
+                'created_at',
+                now()->year
+            )
+            ->selectRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER) as month"
+            )
+            ->selectRaw(
+                'SUM(total_price) as total'
+            )
+            ->groupByRaw(
+                "CAST(strftime('%m', created_at) AS INTEGER)"
+            )
+            ->pluck(
+                'total',
+                'month'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | FORMAT MONTHLY REVENUE
+        |--------------------------------------------------------------------------
+        */
+
+        $monthlyRevenue = [];
+
+        foreach ($monthLabels as $monthNumber => $label) {
+            $monthlyRevenue[$monthNumber] = (float) (
+                $monthlyRevenueQuery[$monthNumber] ?? 0
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | BOOKING STATUS
+        |--------------------------------------------------------------------------
+        */
+
+        $bookingStatus = [
+            'pending' => Booking::where(
+                'status',
+                'pending'
+            )->count(),
+
+            'confirmed' => Booking::where(
+                'status',
+                'confirmed'
+            )->count(),
+
+            'completed' => Booking::where(
+                'status',
+                'completed'
+            )->count(),
+
+            'cancelled' => Booking::where(
+                'status',
+                'cancelled'
+            )->count(),
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RECENT BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+
+        $recentBookings = Booking::with([
+            'property',
+            'customer',
+        ])
+            ->latest()
+            ->take(10)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PENDING PROPERTIES
+        |--------------------------------------------------------------------------
+        */
+
+        $pendingProperties = Property::with([
+            'mitra',
+        ])
+            ->where(
+                'status',
+                'pending'
+            )
+            ->latest()
+            ->take(10)
+            ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RETURN SUPER ADMIN VIEW
+        |--------------------------------------------------------------------------
+        */
+
+        return view(
+            'dashboard.super-admin',
             compact(
                 'stats',
                 'recentBookings',
@@ -285,7 +587,12 @@ class DashboardController extends Controller
                 'monthLabels',
                 'bookingStatus',
                 'customerCount',
-                'mitraCount'
+                'mitraCount',
+                'adminCount',
+                'superAdminCount',
+                'totalUserCount',
+                'latestUsers',
+                'latestProperties'
             )
         );
     }
@@ -658,10 +965,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | ALIAS UPCOMING BOOKING
         |--------------------------------------------------------------------------
-        |
-        | Disediakan supaya Blade customer yang menggunakan
-        | $upcomingBooking tetap kompatibel.
-        |
         */
 
         $upcomingBooking = $activeBooking;
@@ -785,9 +1088,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | RECOMMENDED PROPERTIES
         |--------------------------------------------------------------------------
-        |
-        | Alias tambahan untuk Blade customer.
-        |
         */
 
         $recommendedProperties = $popularProperties;

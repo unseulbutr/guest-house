@@ -2,10 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Booking;
-use App\Models\Facility;
-use App\Models\PropertyImage;
-use App\Models\PropertyReview;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -40,6 +36,8 @@ class Property extends Model
             'price_per_night' => 'decimal:2',
             'commission_percentage' => 'decimal:2',
             'star_rating' => 'integer',
+            'latitude' => 'decimal:8',
+            'longitude' => 'decimal:8',
         ];
     }
 
@@ -71,22 +69,23 @@ class Property extends Model
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | MITRA
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // MITRA
+    // ============================================================
 
     public function mitra()
     {
-        return $this->belongsTo(User::class, 'mitra_id');
+        return $this->belongsTo(
+            User::class,
+            'mitra_id'
+        );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | FACILITIES
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // FACILITIES
+    // ============================================================
 
     public function facilities()
     {
@@ -98,33 +97,34 @@ class Property extends Model
         ->withTimestamps();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | BOOKINGS
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // BOOKINGS
+    // ============================================================
 
     public function bookings()
     {
-        return $this->hasMany(Booking::class);
+        return $this->hasMany(
+            Booking::class
+        );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | REVIEWS / RATING DARI TAMU
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // REVIEWS
+    // ============================================================
 
     public function reviews()
     {
-        return $this->hasMany(PropertyReview::class);
+        return $this->hasMany(
+            PropertyReview::class
+        );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SAVED PROPERTY
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // SAVED PROPERTY
+    // ============================================================
 
     public function savedByCustomers()
     {
@@ -133,19 +133,18 @@ class Property extends Model
             'saved_properties',
             'property_id',
             'customer_id'
-        )
-        ->withTimestamps();
+        )->withTimestamps();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | PROPERTY IMAGES
-    |--------------------------------------------------------------------------
-    */
+
+    // ============================================================
+    // IMAGES
+    // ============================================================
 
     public function images()
     {
-        return $this->hasMany(PropertyImage::class)
-            ->orderBy('sort_order');
+        return $this->hasMany(
+            PropertyImage::class
+        )->orderBy('sort_order');
     }
 }

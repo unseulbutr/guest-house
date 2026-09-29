@@ -15,7 +15,7 @@ class BookingExtensionController extends Controller
     | CREATE
     |--------------------------------------------------------------------------
     |
-    | Customer membuka form perpanjangan.
+    | Menampilkan halaman perpanjangan booking.
     |
     */
 
@@ -29,29 +29,14 @@ class BookingExtensionController extends Controller
             'Anda tidak berhak mengakses booking ini.'
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | BOOKING HARUS MASIH AKTIF
-        |--------------------------------------------------------------------------
-        */
-
         abort_unless(
-            in_array(
-                $booking->status,
-                [
-                    'pending',
-                    'confirmed',
-                ]
-            ),
+            in_array($booking->status, [
+                'pending',
+                'confirmed',
+            ]),
             400,
             'Booking ini tidak dapat diperpanjang.'
         );
-
-        /*
-        |--------------------------------------------------------------------------
-        | HARUS SUDAH BAYAR
-        |--------------------------------------------------------------------------
-        */
 
         abort_unless(
             $booking->payment_status === 'paid',
@@ -61,35 +46,214 @@ class BookingExtensionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | CEK REQUEST PENDING
+        | CEK EXTENSION AKTIF
         |--------------------------------------------------------------------------
+        |
+        | Extension dianggap aktif jika:
+        |
+        | 1. pending
+        | 2. approved + belum dibayar
+        |
         */
 
         $pendingExtension = BookingExtension::where(
             'booking_id',
             $booking->id
         )
+            ->where('status', 'pending')
+            ->latest('created_at')
+            ->first();
+
+        $approvedExtension = BookingExtension::where(
+            'booking_id',
+            $booking->id
+        )
+            ->where('status', 'approved')
+            ->where('payment_status', 'pending')
+            ->latest('created_at')
+            ->first();
+
+        if ($pendingExtension || $approvedExtension) {
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $booking
+                )
+                ->with(
+                    'error',
+                    'Masih ada permintaan perpanjangan yang harus diselesaikan terlebih dahulu.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CARI BOOKING LAIN
+        |--------------------------------------------------------------------------
+        */
+
+        $conflictingBookings = Booking::where(
+            'property_id',
+            $booking->property_id
+        )
             ->where(
-                'status',
-                'pending'
+                'id',
+                '!=',
+                $booking->id
             )
-            ->exists();
+            ->whereIn(
+                'status',
+                [
+                    'pending',
+                    'confirmed',
+                ]
+            )
+            ->where(
+                'check_in',
+                '>=',
+                $booking->check_out
+            )
+            ->orderBy('check_in')
+            ->get([
+                'id',
+                'check_in',
+                'check_out',
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | BUAT DAFTAR TANGGAL TERBLOKIR
+        |--------------------------------------------------------------------------
+        */
+
+        $blockedDates = [];
+
+        foreach ($conflictingBookings as $conflict) {
+
+            $start = Carbon::parse(
+                $conflict->check_in
+            );
+
+            $end = Carbon::parse(
+                $conflict->check_out
+            );
+
+            /*
+            | Booking 20 - 23 berarti malam:
+            |
+            | 20
+            | 21
+            | 22
+            |
+            | Tanggal 23 adalah checkout.
+            */
+
+            while ($start->lt($end)) {
+
+                $blockedDates[] =
+                    $start->format('Y-m-d');
+
+                $start->addDay();
+            }
+        }
+
+        $blockedDates = array_values(
+            array_unique($blockedDates)
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | KALENDER
+        |--------------------------------------------------------------------------
+        */
+
+        $calendarStart = Carbon::parse(
+            $booking->check_out
+        )->addDay();
+
+        $calendarEnd = Carbon::parse(
+            $booking->check_out
+        )->addDays(90);
+
+        /*
+        |--------------------------------------------------------------------------
+        | AVAILABLE DATES
+        |--------------------------------------------------------------------------
+        */
+
+        $availableDates = [];
+
+        $current = $calendarStart->copy();
+
+        while ($current->lte($calendarEnd)) {
+
+            $date = $current->format('Y-m-d');
+
+            /*
+            | Kandidat checkout hanya boleh dipilih
+            | jika seluruh malam dari checkout lama
+            | sampai checkout baru tersedia.
+            */
+
+            $candidateCheckOut = $current->copy();
+
+            $hasConflict = Booking::where(
+                'property_id',
+                $booking->property_id
+            )
+                ->where(
+                    'id',
+                    '!=',
+                    $booking->id
+                )
+                ->whereIn(
+                    'status',
+                    [
+                        'pending',
+                        'confirmed',
+                    ]
+                )
+                ->where(
+                    'check_in',
+                    '<',
+                    $candidateCheckOut->format('Y-m-d')
+                )
+                ->where(
+                    'check_out',
+                    '>',
+                    Carbon::parse(
+                        $booking->check_out
+                    )->format('Y-m-d')
+                )
+                ->exists();
+
+            if (!$hasConflict) {
+                $availableDates[] = $date;
+            }
+
+            $current->addDay();
+        }
 
         return view(
             'bookings.extensions.create',
             compact(
                 'booking',
-                'pendingExtension'
+                'pendingExtension',
+                'approvedExtension',
+                'blockedDates',
+                'availableDates',
+                'calendarStart',
+                'calendarEnd'
             )
         );
     }
+
 
     /*
     |--------------------------------------------------------------------------
     | STORE
     |--------------------------------------------------------------------------
     |
-    | Customer mengajukan perpanjangan.
+    | Customer membuat permintaan extension.
     |
     */
 
@@ -104,13 +268,10 @@ class BookingExtensionController extends Controller
         );
 
         abort_unless(
-            in_array(
-                $booking->status,
-                [
-                    'pending',
-                    'confirmed',
-                ]
-            ),
+            in_array($booking->status, [
+                'pending',
+                'confirmed',
+            ]),
             400,
             'Booking ini tidak dapat diperpanjang.'
         );
@@ -131,14 +292,18 @@ class BookingExtensionController extends Controller
             'new_check_out' => [
                 'required',
                 'date',
-                'after:' .
-                $booking->check_out->format('Y-m-d'),
+                'after:' . $booking->check_out->format('Y-m-d'),
             ],
 
             'customer_note' => [
                 'nullable',
                 'string',
                 'max:1000',
+            ],
+
+            'agree_terms' => [
+                'required',
+                'accepted',
             ],
         ], [
             'new_check_out.required' =>
@@ -152,31 +317,47 @@ class BookingExtensionController extends Controller
 
             'customer_note.max' =>
                 'Catatan maksimal 1000 karakter.',
+
+            'agree_terms.required' =>
+                'Anda harus menyetujui syarat dan ketentuan perpanjangan.',
+
+            'agree_terms.accepted' =>
+                'Anda harus membaca dan menyetujui syarat dan ketentuan perpanjangan.',
         ]);
 
         /*
         |--------------------------------------------------------------------------
-        | CEK REQUEST PENDING
+        | CEK EXTENSION AKTIF
         |--------------------------------------------------------------------------
         */
 
-        $hasPending = BookingExtension::where(
+        $activeExtension = BookingExtension::where(
             'booking_id',
             $booking->id
         )
-            ->where(
-                'status',
-                'pending'
-            )
+            ->where(function ($query) {
+
+                $query
+                    ->where('status', 'pending')
+
+                    ->orWhere(function ($query) {
+
+                        $query
+                            ->where('status', 'approved')
+                            ->where('payment_status', 'pending');
+
+                    });
+
+            })
             ->exists();
 
-        if ($hasPending) {
+        if ($activeExtension) {
 
             return back()
                 ->withInput()
                 ->with(
                     'extension_error',
-                    'Masih ada permintaan perpanjangan yang sedang diproses.'
+                    'Masih ada permintaan perpanjangan yang harus diselesaikan terlebih dahulu.'
                 );
         }
 
@@ -205,53 +386,91 @@ class BookingExtensionController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
 
+                /*
+                |--------------------------------------------------------------------------
+                | STATUS
+                |--------------------------------------------------------------------------
+                */
+
+                if (!in_array(
+                    $lockedBooking->status,
+                    [
+                        'pending',
+                        'confirmed',
+                    ]
+                )) {
+                    return null;
+                }
 
                 /*
                 |--------------------------------------------------------------------------
-                | CEK ULANG STATUS
+                | PAYMENT
                 |--------------------------------------------------------------------------
                 */
 
                 if (
-                    !in_array(
-                        $lockedBooking->status,
-                        [
-                            'pending',
-                            'confirmed',
-                        ]
-                    )
+                    $lockedBooking->payment_status !== 'paid'
                 ) {
                     return null;
                 }
 
-
                 /*
                 |--------------------------------------------------------------------------
-                | TANGGAL LAMA
+                | CEK EXTENSION AKTIF LAGI
                 |--------------------------------------------------------------------------
                 */
 
-                $oldCheckOut =
-                    Carbon::parse(
-                        $lockedBooking->check_out
-                    );
+                $activeExtension = BookingExtension::where(
+                    'booking_id',
+                    $lockedBooking->id
+                )
+                    ->where(function ($query) {
 
+                        $query
+                            ->where('status', 'pending')
+
+                            ->orWhere(function ($query) {
+
+                                $query
+                                    ->where('status', 'approved')
+                                    ->where('payment_status', 'pending');
+
+                            });
+
+                    })
+                    ->exists();
+
+                if ($activeExtension) {
+                    return null;
+                }
 
                 /*
                 |--------------------------------------------------------------------------
-                | TANGGAL BARU
+                | TANGGAL
                 |--------------------------------------------------------------------------
                 */
 
-                $newCheckOut =
-                    Carbon::parse(
-                        $validated['new_check_out']
-                    );
+                $oldCheckOut = Carbon::parse(
+                    $lockedBooking->check_out
+                );
 
+                $newCheckOut = Carbon::parse(
+                    $validated['new_check_out']
+                );
 
                 /*
                 |--------------------------------------------------------------------------
-                | JUMLAH MALAM TAMBAHAN
+                | CEK CHECKOUT
+                |--------------------------------------------------------------------------
+                */
+
+                if (!$newCheckOut->greaterThan($oldCheckOut)) {
+                    return null;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | HITUNG MALAM
                 |--------------------------------------------------------------------------
                 */
 
@@ -260,28 +479,14 @@ class BookingExtensionController extends Controller
                         $newCheckOut
                     );
 
-
                 if ($additionalNights < 1) {
                     return null;
                 }
 
-
                 /*
                 |--------------------------------------------------------------------------
-                | CEK BOOKING LAIN
+                | CEK BENTROK
                 |--------------------------------------------------------------------------
-                |
-                | Misalnya:
-                |
-                | Booking sekarang:
-                | 10 - 13
-                |
-                | Mau diperpanjang:
-                | 10 - 16
-                |
-                | Maka kita mengecek apakah ada booking lain
-                | mulai dari tanggal 13 sampai 16.
-                |
                 */
 
                 $conflict = Booking::where(
@@ -312,11 +517,9 @@ class BookingExtensionController extends Controller
                     )
                     ->exists();
 
-
                 if ($conflict) {
                     return null;
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -324,29 +527,32 @@ class BookingExtensionController extends Controller
                 |--------------------------------------------------------------------------
                 */
 
-                $property =
-                    $lockedBooking->property;
+                $property = $lockedBooking->property;
 
+                if (!$property) {
+                    return null;
+                }
 
                 /*
                 |--------------------------------------------------------------------------
-                | TAMBAHAN HARGA
+                | HARGA
                 |--------------------------------------------------------------------------
                 */
 
-                $additionalAmount =
-                    $property->price_per_night *
-                    $additionalNights;
+                $pricePerNight =
+                    (float) $property->price_per_night;
 
+                $additionalAmount =
+                    $pricePerNight *
+                    $additionalNights;
 
                 /*
                 |--------------------------------------------------------------------------
-                | CREATE REQUEST
+                | CREATE EXTENSION
                 |--------------------------------------------------------------------------
                 */
 
                 return BookingExtension::create([
-
                     'booking_id' =>
                         $lockedBooking->id,
 
@@ -365,16 +571,30 @@ class BookingExtensionController extends Controller
                     'status' =>
                         'pending',
 
+                    'payment_method' =>
+                        'qris',
+
+                    'payment_status' =>
+                        'pending',
+
+                    'qris_transaction_id' =>
+                        null,
+
+                    'payment_deadline' =>
+                        null,
+
+                    'paid_at' =>
+                        null,
+
                     'customer_note' =>
                         $validated['customer_note'] ?? null,
                 ]);
             }
         );
 
-
         /*
         |--------------------------------------------------------------------------
-        | GAGAL / BENTROK
+        | GAGAL
         |--------------------------------------------------------------------------
         */
 
@@ -384,10 +604,9 @@ class BookingExtensionController extends Controller
                 ->withInput()
                 ->with(
                     'extension_error',
-                    'Tanggal perpanjangan tidak tersedia atau booking sudah berubah.'
+                    'Tanggal tersebut sudah tidak tersedia. Silakan pilih tanggal lain.'
                 );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -402,7 +621,7 @@ class BookingExtensionController extends Controller
             )
             ->with(
                 'success',
-                'Permintaan perpanjangan menginap berhasil dikirim. Menunggu konfirmasi mitra.'
+                'Permintaan perpanjangan berhasil dikirim. Menunggu persetujuan mitra.'
             );
     }
 
@@ -411,9 +630,6 @@ class BookingExtensionController extends Controller
     |--------------------------------------------------------------------------
     | MITRA INDEX
     |--------------------------------------------------------------------------
-    |
-    | Semua request extension milik property mitra.
-    |
     */
 
     public function indexForMitra(
@@ -431,6 +647,7 @@ class BookingExtensionController extends Controller
                         'mitra_id',
                         $request->user()->id
                     );
+
                 }
             )
             ->latest()
@@ -453,9 +670,6 @@ class BookingExtensionController extends Controller
         Request $request,
         BookingExtension $extension
     ) {
-        $booking =
-            $extension->booking;
-
         $this->authorizeExtensionAccess(
             $request,
             $extension
@@ -468,9 +682,7 @@ class BookingExtensionController extends Controller
 
         return view(
             'bookings.extensions.show',
-            compact(
-                'extension'
-            )
+            compact('extension')
         );
     }
 
@@ -479,6 +691,15 @@ class BookingExtensionController extends Controller
     |--------------------------------------------------------------------------
     | APPROVE
     |--------------------------------------------------------------------------
+    |
+    | PENTING:
+    |
+    | Approve hanya mengubah status extension.
+    |
+    | Booking TIDAK diubah di sini.
+    |
+    | Booking baru diubah setelah customer membayar.
+    |
     */
 
     public function approve(
@@ -496,11 +717,8 @@ class BookingExtensionController extends Controller
             'Permintaan perpanjangan ini sudah diproses.'
         );
 
-
         $result = DB::transaction(
-            function () use (
-                $extension
-            ) {
+            function () use ($extension) {
 
                 /*
                 |--------------------------------------------------------------------------
@@ -516,14 +734,11 @@ class BookingExtensionController extends Controller
                         ->lockForUpdate()
                         ->firstOrFail();
 
-
                 if (
-                    $lockedExtension->status !==
-                    'pending'
+                    $lockedExtension->status !== 'pending'
                 ) {
                     return false;
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -539,29 +754,430 @@ class BookingExtensionController extends Controller
                         ->lockForUpdate()
                         ->firstOrFail();
 
+                /*
+                |--------------------------------------------------------------------------
+                | STATUS BOOKING
+                |--------------------------------------------------------------------------
+                */
+
+                if (!in_array(
+                    $booking->status,
+                    [
+                        'pending',
+                        'confirmed',
+                    ]
+                )) {
+                    return false;
+                }
 
                 /*
                 |--------------------------------------------------------------------------
-                | BOOKING HARUS AKTIF
+                | PAYMENT BOOKING
                 |--------------------------------------------------------------------------
                 */
 
                 if (
-                    !in_array(
-                        $booking->status,
-                        [
-                            'pending',
-                            'confirmed',
-                        ]
+                    $booking->payment_status !== 'paid'
+                ) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | CEK CHECKOUT
+                |--------------------------------------------------------------------------
+                */
+
+                $currentCheckOut =
+                    Carbon::parse(
+                        $booking->check_out
+                    );
+
+                $oldCheckOut =
+                    Carbon::parse(
+                        $lockedExtension->old_check_out
+                    );
+
+                $newCheckOut =
+                    Carbon::parse(
+                        $lockedExtension->new_check_out
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | CHECKOUT LAMA HARUS SAMA
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    !$currentCheckOut->equalTo(
+                        $oldCheckOut
                     )
                 ) {
                     return false;
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | CHECKOUT BARU
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    !$newCheckOut->greaterThan(
+                        $currentCheckOut
+                    )
+                ) {
+                    return false;
+                }
 
                 /*
                 |--------------------------------------------------------------------------
-                | CEK BENTROK SEKALI LAGI
+                | CEK BENTROK
+                |--------------------------------------------------------------------------
+                */
+
+                $conflict = Booking::where(
+                    'property_id',
+                    $booking->property_id
+                )
+                    ->where(
+                        'id',
+                        '!=',
+                        $booking->id
+                    )
+                    ->whereIn(
+                        'status',
+                        [
+                            'pending',
+                            'confirmed',
+                        ]
+                    )
+                    ->where(
+                        'check_in',
+                        '<',
+                        $newCheckOut->format('Y-m-d')
+                    )
+                    ->where(
+                        'check_out',
+                        '>',
+                        $currentCheckOut->format('Y-m-d')
+                    )
+                    ->exists();
+
+                if ($conflict) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | APPROVE EXTENSION
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedExtension->update([
+                    'status' =>
+                        'approved',
+
+                    'payment_method' =>
+                        'qris',
+
+                    'payment_status' =>
+                        'pending',
+
+                    'payment_deadline' =>
+                        now()->addHours(24),
+
+                    'qris_transaction_id' =>
+                        null,
+
+                    'paid_at' =>
+                        null,
+
+                    'approved_at' =>
+                        now(),
+                ]);
+
+                return true;
+            }
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | GAGAL
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$result) {
+
+            return back()->with(
+                'error',
+                'Perpanjangan tidak dapat disetujui karena tanggal sudah tidak tersedia atau booking sudah berubah.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | BERHASIL
+        |--------------------------------------------------------------------------
+        */
+
+        return back()->with(
+            'success',
+            'Perpanjangan berhasil disetujui. Customer sekarang dapat melakukan pembayaran.'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PAYMENT PAGE
+    |--------------------------------------------------------------------------
+    */
+
+    public function payment(
+        Request $request,
+        BookingExtension $extension
+    ) {
+        abort_unless(
+            $extension->booking->customer_id ===
+            $request->user()->id,
+            403,
+            'Anda tidak berhak membayar perpanjangan ini.'
+        );
+
+        abort_unless(
+            $extension->status === 'approved',
+            400,
+            'Perpanjangan belum disetujui oleh mitra.'
+        );
+
+        abort_unless(
+            $extension->payment_status === 'pending',
+            400,
+            'Pembayaran perpanjangan ini sudah diproses.'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | CEK DEADLINE
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $extension->payment_deadline &&
+            now()->greaterThan(
+                $extension->payment_deadline
+            )
+        ) {
+
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'error',
+                    'Batas waktu pembayaran perpanjangan sudah berakhir.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOAD DATA
+        |--------------------------------------------------------------------------
+        */
+
+        $extension->load([
+            'booking.property',
+        ]);
+
+        return view(
+            'bookings.extensions.payment',
+            compact('extension')
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SIMULATE PAYMENT
+    |--------------------------------------------------------------------------
+    */
+
+    public function simulatePay(
+        Request $request,
+        BookingExtension $extension
+    ) {
+        abort_unless(
+            $extension->booking->customer_id ===
+            $request->user()->id,
+            403,
+            'Anda tidak berhak membayar perpanjangan ini.'
+        );
+
+        abort_unless(
+            $extension->status === 'approved',
+            400,
+            'Perpanjangan belum disetujui oleh mitra.'
+        );
+
+        abort_unless(
+            $extension->payment_status === 'pending',
+            400,
+            'Pembayaran perpanjangan ini sudah diproses.'
+        );
+
+        $result = DB::transaction(
+            function () use ($extension) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | LOCK EXTENSION
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedExtension =
+                    BookingExtension::where(
+                        'id',
+                        $extension->id
+                    )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                /*
+                |--------------------------------------------------------------------------
+                | SUDAH DIBAYAR
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $lockedExtension->payment_status === 'paid'
+                ) {
+                    return 'already_paid';
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | STATUS
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $lockedExtension->status !== 'approved'
+                ) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | DEADLINE
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $lockedExtension->payment_deadline &&
+                    now()->greaterThan(
+                        $lockedExtension->payment_deadline
+                    )
+                ) {
+                    return 'expired';
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | LOCK BOOKING
+                |--------------------------------------------------------------------------
+                */
+
+                $booking =
+                    Booking::where(
+                        'id',
+                        $lockedExtension->booking_id
+                    )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                /*
+                |--------------------------------------------------------------------------
+                | STATUS BOOKING
+                |--------------------------------------------------------------------------
+                */
+
+                if (!in_array(
+                    $booking->status,
+                    [
+                        'pending',
+                        'confirmed',
+                    ]
+                )) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | PAYMENT BOOKING
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $booking->payment_status !== 'paid'
+                ) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | TANGGAL
+                |--------------------------------------------------------------------------
+                */
+
+                $currentCheckOut =
+                    Carbon::parse(
+                        $booking->check_out
+                    );
+
+                $oldCheckOut =
+                    Carbon::parse(
+                        $lockedExtension->old_check_out
+                    );
+
+                $newCheckOut =
+                    Carbon::parse(
+                        $lockedExtension->new_check_out
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | BOOKING TIDAK BOLEH BERUBAH
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    !$currentCheckOut->equalTo(
+                        $oldCheckOut
+                    )
+                ) {
+                    return 'booking_changed';
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | CHECKOUT BARU
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    !$newCheckOut->greaterThan(
+                        $currentCheckOut
+                    )
+                ) {
+                    return false;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | CEK BENTROK TERAKHIR
                 |--------------------------------------------------------------------------
                 */
 
@@ -585,20 +1201,67 @@ class BookingExtensionController extends Controller
                         ->where(
                             'check_in',
                             '<',
-                            $lockedExtension->new_check_out
+                            $newCheckOut->format('Y-m-d')
                         )
                         ->where(
                             'check_out',
                             '>',
-                            $booking->check_out
+                            $currentCheckOut->format('Y-m-d')
                         )
                         ->exists();
 
-
                 if ($conflict) {
-                    return false;
+                    return 'conflict';
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | NOMINAL
+                |--------------------------------------------------------------------------
+                */
+
+                $additionalAmount =
+                    (float) $lockedExtension->additional_amount;
+
+                $newSubtotal =
+                    (float) $booking->subtotal +
+                    $additionalAmount;
+
+                /*
+                |--------------------------------------------------------------------------
+                | KOMISI
+                |--------------------------------------------------------------------------
+                */
+
+                $commissionPercentage =
+                    (float) $booking->commission_percentage;
+
+                $newCommissionAmount =
+                    round(
+                        $newSubtotal *
+                        ($commissionPercentage / 100),
+                        2
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | MITRA PAYOUT
+                |--------------------------------------------------------------------------
+                */
+
+                $newMitraPayout =
+                    $newSubtotal -
+                    $newCommissionAmount;
+
+                /*
+                |--------------------------------------------------------------------------
+                | TOTAL
+                |--------------------------------------------------------------------------
+                */
+
+                $newTotalPrice =
+                    (float) $booking->total_price +
+                    $additionalAmount;
 
                 /*
                 |--------------------------------------------------------------------------
@@ -607,55 +1270,21 @@ class BookingExtensionController extends Controller
                 */
 
                 $booking->update([
-
                     'check_out' =>
-                        $lockedExtension
-                            ->new_check_out,
+                        $newCheckOut->format('Y-m-d'),
 
                     'subtotal' =>
-                        $booking->subtotal +
-                        $lockedExtension
-                            ->additional_amount,
+                        $newSubtotal,
 
                     'commission_amount' =>
-                        (
-                            $booking->subtotal +
-                            $lockedExtension
-                                ->additional_amount
-                        ) *
-                        (
-                            $booking
-                                ->commission_percentage
-                            / 100
-                        ),
+                        $newCommissionAmount,
 
                     'mitra_payout_amount' =>
-                        (
-                            $booking->subtotal +
-                            $lockedExtension
-                                ->additional_amount
-                        )
-                        -
-                        (
-                            (
-                                $booking->subtotal +
-                                $lockedExtension
-                                    ->additional_amount
-                            )
-                            *
-                            (
-                                $booking
-                                    ->commission_percentage
-                                / 100
-                            )
-                        ),
+                        $newMitraPayout,
 
                     'total_price' =>
-                        $booking->total_price +
-                        $lockedExtension
-                            ->additional_amount,
+                        $newTotalPrice,
                 ]);
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -663,34 +1292,119 @@ class BookingExtensionController extends Controller
                 |--------------------------------------------------------------------------
                 */
 
+                $transactionId =
+                    'SIMULATED-EXT-' .
+                    strtoupper(
+                        substr(
+                            md5(
+                                uniqid(
+                                    (string) $lockedExtension->id,
+                                    true
+                                )
+                            ),
+                            0,
+                            12
+                        )
+                    );
+
                 $lockedExtension->update([
+                    'payment_method' =>
+                        'qris',
 
-                    'status' =>
-                        'approved',
+                    'payment_status' =>
+                        'paid',
 
-                    'approved_at' =>
+                    'qris_transaction_id' =>
+                        $transactionId,
+
+                    'paid_at' =>
                         now(),
                 ]);
 
-
-                return true;
+                return 'paid';
             }
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | HASIL PEMBAYARAN
+        |--------------------------------------------------------------------------
+        */
 
-        if (!$result) {
+        if ($result === 'paid') {
 
-            return back()->with(
-                'error',
-                'Perpanjangan tidak dapat disetujui karena tanggal sudah tidak tersedia atau booking sudah berubah.'
-            );
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'success',
+                    'Pembayaran perpanjangan berhasil. Booking berhasil diperpanjang.'
+                );
         }
 
+        if ($result === 'already_paid') {
 
-        return back()->with(
-            'success',
-            'Perpanjangan menginap berhasil disetujui.'
-        );
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'success',
+                    'Pembayaran perpanjangan sudah diproses.'
+                );
+        }
+
+        if ($result === 'expired') {
+
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'error',
+                    'Batas waktu pembayaran perpanjangan sudah berakhir.'
+                );
+        }
+
+        if ($result === 'booking_changed') {
+
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'error',
+                    'Pembayaran tidak dapat diproses karena tanggal booking sudah berubah.'
+                );
+        }
+
+        if ($result === 'conflict') {
+
+            return redirect()
+                ->route(
+                    'customer.bookings.show',
+                    $extension->booking
+                )
+                ->with(
+                    'error',
+                    'Pembayaran tidak dapat diproses karena tanggal perpanjangan sudah tidak tersedia.'
+                );
+        }
+
+        return redirect()
+            ->route(
+                'customer.bookings.show',
+                $extension->booking
+            )
+            ->with(
+                'error',
+                'Pembayaran perpanjangan tidak dapat diproses.'
+            );
     }
 
 
@@ -715,26 +1429,21 @@ class BookingExtensionController extends Controller
             'Permintaan perpanjangan ini sudah diproses.'
         );
 
-
-        $validated =
-            $request->validate([
-                'rejection_reason' =>
-                    'required|string|max:1000',
-            ], [
-                'rejection_reason.required' =>
-                    'Alasan penolakan wajib diisi.',
-            ]);
-
+        $validated = $request->validate([
+            'rejection_reason' =>
+                'required|string|max:1000',
+        ], [
+            'rejection_reason.required' =>
+                'Alasan penolakan wajib diisi.',
+        ]);
 
         $extension->update([
-
             'status' =>
                 'rejected',
 
             'rejection_reason' =>
                 $validated['rejection_reason'],
         ]);
-
 
         return back()->with(
             'success',
@@ -745,7 +1454,7 @@ class BookingExtensionController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | CUSTOMER CANCEL REQUEST
+    | CUSTOMER CANCEL
     |--------------------------------------------------------------------------
     */
 
@@ -760,19 +1469,16 @@ class BookingExtensionController extends Controller
             'Anda tidak berhak membatalkan permintaan ini.'
         );
 
-
         abort_unless(
             $extension->status === 'pending',
             400,
             'Permintaan ini sudah diproses.'
         );
 
-
         $extension->update([
             'status' =>
                 'cancelled',
         ]);
-
 
         return back()->with(
             'success',
@@ -792,12 +1498,9 @@ class BookingExtensionController extends Controller
         BookingExtension $extension
     ): void {
 
-        $user =
-            $request->user();
+        $user = $request->user();
 
-        $booking =
-            $extension->booking;
-
+        $booking = $extension->booking;
 
         $allowed =
             $user->hasRole('admin')
@@ -807,17 +1510,14 @@ class BookingExtensionController extends Controller
             (
                 $user->hasRole('customer')
                 &&
-                $booking->customer_id ===
-                $user->id
+                $booking->customer_id === $user->id
             )
             ||
             (
                 $user->hasRole('mitra')
                 &&
-                $booking->property->mitra_id ===
-                $user->id
+                optional($booking->property)->mitra_id === $user->id
             );
-
 
         abort_unless(
             $allowed,
@@ -838,14 +1538,12 @@ class BookingExtensionController extends Controller
         BookingExtension $extension
     ): void {
 
-        $booking =
-            $extension->booking;
-
+        $booking = $extension->booking;
 
         abort_unless(
             $request->user()->hasRole('mitra')
             &&
-            $booking->property->mitra_id ===
+            optional($booking->property)->mitra_id ===
             $request->user()->id,
             403,
             'Anda tidak berhak memproses permintaan ini.'

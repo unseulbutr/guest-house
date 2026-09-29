@@ -35,7 +35,6 @@
 
         <div class="flex flex-col lg:flex-row gap-5 lg:gap-8">
 
-
             {{-- ==========================================================
                  SIDEBAR
             =========================================================== --}}
@@ -48,7 +47,7 @@
 
                         <div class="flex items-center gap-3">
 
-                            <div class="w-11 h-11 rounded-full bg-[#ef6c2f] text-white flex items-center justify-center font-bold overflow-hidden">
+                            <div class="w-11 h-11 rounded-full bg-[#0077C8] text-white flex items-center justify-center font-bold overflow-hidden">
 
                                 @if(auth()->user()->avatar)
 
@@ -88,7 +87,7 @@
                         {{-- MY BOOKINGS --}}
                         <a
                             href="{{ route('customer.bookings.index') }}"
-                            class="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#fff1e8] text-[#ed6d32] font-semibold transition">
+                            class="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#EAF5FF] text-[#0077C8] font-semibold transition">
 
                             <svg
                                 class="w-5 h-5 shrink-0"
@@ -121,7 +120,7 @@
 
                             @if($stats['upcoming_bookings'] > 0)
 
-                                <span class="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-[#ed6d32] text-white text-[10px] flex items-center justify-center">
+                                <span class="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-[#0077C8] text-white text-[10px] flex items-center justify-center">
                                     {{ $stats['upcoming_bookings'] }}
                                 </span>
 
@@ -305,7 +304,7 @@
 
                             <div class="flex items-center gap-3">
 
-                                <div class="w-10 h-10 rounded-full bg-[#ed6d32] text-white flex items-center justify-center font-bold overflow-hidden shrink-0">
+                                <div class="w-10 h-10 rounded-full bg-[#0077C8] text-white flex items-center justify-center font-bold overflow-hidden shrink-0">
 
                                     @if(auth()->user()->avatar)
 
@@ -360,7 +359,7 @@
 
                             <a
                                 href="{{ route('home') }}"
-                                class="text-gray-400 hover:text-[#ed6d32] transition">
+                                class="text-gray-400 hover:text-[#0077C8] transition">
 
                                 <svg
                                     class="w-5 h-5"
@@ -378,7 +377,7 @@
 
                             </a>
 
-                            <h1 class="font-display text-[25px] sm:text-[30px] font-bold text-[#ed6d32]">
+                            <h1 class="font-display text-[25px] sm:text-[30px] font-bold text-[#0077C8]">
                                 My Bookings
                             </h1>
 
@@ -389,7 +388,7 @@
 
                     <a
                         href="{{ route('home') }}"
-                        class="hidden sm:inline-flex items-center gap-2 bg-[#ed6d32] hover:bg-[#d95d27] text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition">
+                        class="hidden sm:inline-flex items-center gap-2 bg-[#0077C8] hover:bg-[#005FA3] text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition">
 
                         <svg
                             class="w-4 h-4"
@@ -472,7 +471,7 @@
                         {{-- TOP STATUS --}}
                         <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
 
-                            <div class="font-semibold text-[#ed6d32]">
+                            <div class="font-semibold text-[#0077C8]">
                                 Active
                             </div>
 
@@ -684,7 +683,7 @@
 
                                 <a
                                     href="{{ route('customer.bookings.show', $activeBooking) }}"
-                                    class="text-gray-500 hover:text-[#ed6d32] transition">
+                                    class="text-gray-500 hover:text-[#0077C8] transition">
 
                                     <svg
                                         class="w-6 h-6"
@@ -720,11 +719,11 @@
                                                 Booking
                                             </div>
 
-                                            <div class="text-center text-[11px] text-[#ed6d32] font-semibold mt-2">
+                                            <div class="text-center text-[11px] text-[#0077C8] font-semibold mt-2">
                                                 Confirmed
                                             </div>
 
-                                            <div class="h-2 bg-[#ed6d32] rounded-full mt-2"></div>
+                                            <div class="h-2 bg-[#0077C8] rounded-full mt-2"></div>
 
                                         </div>
 
@@ -738,7 +737,7 @@
 
                                             <div class="text-center text-[11px] mt-2
                                                 {{ $activeBooking->payment_status === 'paid'
-                                                    ? 'text-[#ed6d32]'
+                                                    ? 'text-[#0077C8]'
                                                     : 'text-gray-500' }}">
 
                                                 {{ $activeBooking->payment_status === 'paid'
@@ -749,7 +748,7 @@
 
                                             <div class="h-2 rounded-full mt-2
                                                 {{ $activeBooking->payment_status === 'paid'
-                                                    ? 'bg-[#ed6d32]'
+                                                    ? 'bg-[#0077C8]'
                                                     : 'bg-gray-200' }}">
                                             </div>
 
@@ -832,7 +831,7 @@
 
                                 <a
                                     href="{{ route('customer.bookings.show', $activeBooking) }}"
-                                    class="inline-flex items-center justify-center bg-[#ed6d32] hover:bg-[#d95d27] text-white font-semibold text-xs px-5 py-3 rounded-xl transition w-full sm:w-auto">
+                                    class="inline-flex items-center justify-center bg-[#0077C8] hover:bg-[#005FA3] text-white font-semibold text-xs px-5 py-3 rounded-xl transition w-full sm:w-auto">
 
                                     Lihat Detail Booking
 
@@ -863,7 +862,7 @@
                     {{-- NO ACTIVE BOOKING --}}
                     <div class="dashboard-card bg-white rounded-2xl p-8 sm:p-12 text-center mb-7">
 
-                        <div class="w-16 h-16 mx-auto rounded-2xl bg-[#fff1e8] text-[#ed6d32] flex items-center justify-center mb-5">
+                        <div class="w-16 h-16 mx-auto rounded-2xl bg-[#EAF5FF] text-[#0077C8] flex items-center justify-center mb-5">
 
                             <svg
                                 class="w-8 h-8"
@@ -897,7 +896,7 @@
 
                         <a
                             href="{{ route('home') }}"
-                            class="inline-flex items-center gap-2 bg-[#ed6d32] hover:bg-[#d95d27] text-white font-semibold text-sm px-5 py-3 rounded-xl">
+                            class="inline-flex items-center gap-2 bg-[#0077C8] hover:bg-[#005FA3] text-white font-semibold text-sm px-5 py-3 rounded-xl">
 
                             Cari Penginapan
 
@@ -922,7 +921,6 @@
                 @endif
 
 
-
                 {{-- ======================================================
                      UPCOMING TRIPS
                 ======================================================= --}}
@@ -933,13 +931,13 @@
 
                         <div class="flex items-center justify-between mb-4">
 
-                            <h2 class="font-display text-lg sm:text-xl font-bold text-[#ed6d32]">
+                            <h2 class="font-display text-lg sm:text-xl font-bold text-[#0077C8]">
                                 Upcoming Trips
                             </h2>
 
                             <a
                                 href="{{ route('customer.bookings.index') }}"
-                                class="text-xs text-gray-400 hover:text-[#ed6d32]">
+                                class="text-xs text-gray-400 hover:text-[#0077C8]">
                                 View all →
                             </a>
 
@@ -1009,14 +1007,20 @@
                                         {{-- CONTENT --}}
                                         <div class="flex-1 min-w-0 p-4 sm:p-5">
 
-                                            <div class="text-[#ed6d32] text-xs font-bold mb-1">
+                                            <div class="text-[#0077C8] text-xs font-bold mb-1">
 
                                                 @if($tripDays === 0)
+
                                                     Today
+
                                                 @elseif($tripDays === 1)
+
                                                     Tomorrow
-                                                else
+
+                                                @else
+
                                                     In {{ $tripDays }} Days
+
                                                 @endif
 
                                             </div>
@@ -1074,7 +1078,6 @@
                     </section>
 
                 @endif
-
 
 
                 {{-- ======================================================
@@ -1232,7 +1235,6 @@
                 @endif
 
 
-
                 {{-- ======================================================
                      EMPTY STATE
                 ======================================================= --}}
@@ -1278,7 +1280,7 @@
 
                         <a
                             href="{{ route('home') }}"
-                            class="inline-flex items-center gap-2 bg-[#ed6d32] hover:bg-[#d95d27] text-white font-semibold text-sm px-5 py-3 rounded-xl">
+                            class="inline-flex items-center gap-2 bg-[#0077C8] hover:bg-[#005FA3] text-white font-semibold text-sm px-5 py-3 rounded-xl">
 
                             Explore Penginapan
 
@@ -1289,7 +1291,6 @@
                 @endif
 
 
-
                 {{-- ======================================================
                      MOBILE SEARCH BUTTON
                 ======================================================= --}}
@@ -1297,7 +1298,7 @@
 
                     <a
                         href="{{ route('home') }}"
-                        class="flex items-center justify-center gap-2 w-full bg-[#ed6d32] text-white font-semibold text-sm px-5 py-3.5 rounded-xl">
+                        class="flex items-center justify-center gap-2 w-full bg-[#0077C8] hover:bg-[#005FA3] text-white font-semibold text-sm px-5 py-3.5 rounded-xl">
 
                         <svg
                             class="w-4 h-4"
