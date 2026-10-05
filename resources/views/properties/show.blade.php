@@ -582,67 +582,240 @@
 
 
 
-            {{-- FASILITAS --}}
-            <div class="lg:col-span-3 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+           {{-- =====================================================
+    FASILITAS
+===================================================== --}}
+<div class="lg:col-span-3 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
 
-                <div class="flex items-center gap-3 mb-5">
+    <div class="flex items-center gap-3 mb-5">
 
-                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center text-lg">
-                        🏠
-                    </div>
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center text-lg">
+            🏠
+        </div>
 
-                    <h2 class="font-bold text-navy-900 text-lg">
-                        Fasilitas
-                    </h2>
+        <h2 class="font-bold text-navy-900 text-lg">
+            Fasilitas
+        </h2>
+
+    </div>
+
+
+    @if ($availableFacilities->isNotEmpty())
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
+
+            @foreach ($availableFacilities as $facility)
+
+                @php
+                    $facilityName = strtolower(trim($facility->name));
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | ICON FASILITAS
+                    |--------------------------------------------------------------------------
+                    | Icon otomatis berdasarkan nama fasilitas.
+                    | Jika nama tidak cocok, gunakan icon default.
+                    */
+
+                    $facilityIcon = '🏠';
+
+                    if (
+                        str_contains($facilityName, 'ac') ||
+                        str_contains($facilityName, 'air conditioner') ||
+                        str_contains($facilityName, 'pendingin')
+                    ) {
+                        $facilityIcon = '❄️';
+
+                    } elseif (
+                        str_contains($facilityName, 'wifi') ||
+                        str_contains($facilityName, 'wi-fi') ||
+                        str_contains($facilityName, 'internet')
+                    ) {
+                        $facilityIcon = '📶';
+
+                    } elseif (
+                        str_contains($facilityName, 'tv') ||
+                        str_contains($facilityName, 'televisi')
+                    ) {
+                        $facilityIcon = '📺';
+
+                    } elseif (
+                        str_contains($facilityName, 'parkir') ||
+                        str_contains($facilityName, 'parking')
+                    ) {
+                        $facilityIcon = '🚗';
+
+                    } elseif (
+                        str_contains($facilityName, 'kolam') ||
+                        str_contains($facilityName, 'swimming')
+                    ) {
+                        $facilityIcon = '🏊';
+
+                    } elseif (
+                        str_contains($facilityName, 'kamar mandi') ||
+                        str_contains($facilityName, 'bathroom') ||
+                        str_contains($facilityName, 'toilet') ||
+                        str_contains($facilityName, 'wc')
+                    ) {
+                        $facilityIcon = '🚿';
+
+                    } elseif (
+                        str_contains($facilityName, 'dapur') ||
+                        str_contains($facilityName, 'kitchen')
+                    ) {
+                        $facilityIcon = '🍳';
+
+                    } elseif (
+                        str_contains($facilityName, 'kasur') ||
+                        str_contains($facilityName, 'bed') ||
+                        str_contains($facilityName, 'tempat tidur')
+                    ) {
+                        $facilityIcon = '🛏️';
+
+                    } elseif (
+                        str_contains($facilityName, 'lemari') ||
+                        str_contains($facilityName, 'wardrobe')
+                    ) {
+                        $facilityIcon = '🗄️';
+
+                    } elseif (
+                        str_contains($facilityName, 'kulkas') ||
+                        str_contains($facilityName, 'refrigerator') ||
+                        str_contains($facilityName, 'freezer')
+                    ) {
+                        $facilityIcon = '🧊';
+
+                    } elseif (
+                        str_contains($facilityName, 'mesin cuci') ||
+                        str_contains($facilityName, 'laundry') ||
+                        str_contains($facilityName, 'washing')
+                    ) {
+                        $facilityIcon = '🧺';
+
+                    } elseif (
+                        str_contains($facilityName, 'balkon') ||
+                        str_contains($facilityName, 'balcony')
+                    ) {
+                        $facilityIcon = '🌇';
+
+                    } elseif (
+                        str_contains($facilityName, 'teras') ||
+                        str_contains($facilityName, 'taman') ||
+                        str_contains($facilityName, 'garden')
+                    ) {
+                        $facilityIcon = '🌿';
+
+                    } elseif (
+                        str_contains($facilityName, 'ruang tamu') ||
+                        str_contains($facilityName, 'living room')
+                    ) {
+                        $facilityIcon = '🛋️';
+
+                    } elseif (
+                        str_contains($facilityName, 'shower')
+                    ) {
+                        $facilityIcon = '🚿';
+
+                    } elseif (
+                        str_contains($facilityName, 'air panas') ||
+                        str_contains($facilityName, 'water heater') ||
+                        str_contains($facilityName, 'water')
+                    ) {
+                        $facilityIcon = '♨️';
+
+                    } elseif (
+                        str_contains($facilityName, 'smoking') ||
+                        str_contains($facilityName, 'merokok')
+                    ) {
+                        $facilityIcon = '🚬';
+
+                    } elseif (
+                        str_contains($facilityName, 'sarapan') ||
+                        str_contains($facilityName, 'breakfast')
+                    ) {
+                        $facilityIcon = '🍳';
+
+                    } elseif (
+                        str_contains($facilityName, 'hewan') ||
+                        str_contains($facilityName, 'pet')
+                    ) {
+                        $facilityIcon = '🐾';
+
+                    } elseif (
+                        str_contains($facilityName, 'keamanan') ||
+                        str_contains($facilityName, 'security') ||
+                        str_contains($facilityName, 'cctv')
+                    ) {
+                        $facilityIcon = '🔒';
+
+                    } elseif (
+                        str_contains($facilityName, 'lift') ||
+                        str_contains($facilityName, 'elevator')
+                    ) {
+                        $facilityIcon = '🛗';
+
+                    } elseif (
+                        str_contains($facilityName, 'gym') ||
+                        str_contains($facilityName, 'fitness')
+                    ) {
+                        $facilityIcon = '🏋️';
+
+                    } elseif (
+                        str_contains($facilityName, 'bbq') ||
+                        str_contains($facilityName, 'barbecue')
+                    ) {
+                        $facilityIcon = '🍖';
+
+                    } elseif (
+                        str_contains($facilityName, 'meja') ||
+                        str_contains($facilityName, 'desk') ||
+                        str_contains($facilityName, 'kerja')
+                    ) {
+                        $facilityIcon = '🖥️';
+
+                    } elseif (
+                        str_contains($facilityName, 'shuttle') ||
+                        str_contains($facilityName, 'antar jemput')
+                    ) {
+                        $facilityIcon = '🚐';
+
+                    } elseif (
+                        str_contains($facilityName, 'resepsionis') ||
+                        str_contains($facilityName, 'reception')
+                    ) {
+                        $facilityIcon = '🛎️';
+                    }
+                @endphp
+
+
+                <div class="flex items-center gap-2.5 text-sm text-navy-900">
+
+                    <span
+                        class="w-8 h-8 rounded-lg bg-blue-50 text-brand-blue flex items-center justify-center text-base shrink-0"
+                        title="{{ $facility->name }}"
+                    >
+                        {{ $facilityIcon }}
+                    </span>
+
+                    <span>
+                        {{ $facility->name }}
+                    </span>
 
                 </div>
 
+            @endforeach
 
-                @if ($availableFacilities->isNotEmpty())
+        </div>
 
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
+    @else
 
-                        @foreach ($availableFacilities as $facility)
+        <div class="text-sm text-gray-400">
+            Belum ada fasilitas yang tersedia.
+        </div>
 
-                            <div class="flex items-center gap-2.5 text-sm text-navy-900">
+    @endif
 
-                                <svg
-                                    class="w-5 h-5 text-brand-blue shrink-0"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="2"
-                                >
-
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-
-                                </svg>
-
-                                <span>
-                                    {{ $facility->name }}
-                                </span>
-
-                            </div>
-
-                        @endforeach
-
-                    </div>
-
-                @else
-
-                    <div class="text-sm text-gray-400">
-
-                        Belum ada fasilitas yang tersedia.
-
-                    </div>
-
-                @endif
-
-            </div>
+</div>
 
         </div>
 

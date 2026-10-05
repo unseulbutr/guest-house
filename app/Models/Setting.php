@@ -16,6 +16,11 @@ class Setting extends Model
         'default_commission_mandiri',
         'default_commission_dikelola',
         'maintenance_mode',
+        'cancellation_fee_h7',
+        'cancellation_fee_h3',
+        'cancellation_fee_h2',
+        'cancellation_fee_h1',
+        'cancellation_fee_same_day',
     ];
 
     protected function casts(): array
@@ -24,6 +29,11 @@ class Setting extends Model
             'maintenance_mode' => 'boolean',
             'default_commission_mandiri' => 'decimal:2',
             'default_commission_dikelola' => 'decimal:2',
+            'cancellation_fee_h7' => 'decimal:2',
+'cancellation_fee_h3' => 'decimal:2',
+'cancellation_fee_h2' => 'decimal:2',
+'cancellation_fee_h1' => 'decimal:2',
+'cancellation_fee_same_day' => 'decimal:2',
         ];
     }
 

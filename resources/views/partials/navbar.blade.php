@@ -417,6 +417,37 @@
                                         @endrole
 
 
+                                        @role('super_admin')
+
+                                            <div class="my-2 border-t border-gray-100"></div>
+
+                                            <div class="px-4 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                                                Super Admin
+                                            </div>
+
+                                            <a href="{{ route('admin.settings.edit') }}"
+                                               class="block px-4 py-3
+                                                      text-sm font-semibold
+                                                      hover:bg-gray-50
+                                                      transition">
+
+                                                Pengaturan Platform
+
+                                            </a>
+
+                                            <a href="{{ route('admin.settings.cancellation-fees.edit') }}"
+                                               class="block px-4 py-3
+                                                      text-sm font-semibold
+                                                      hover:bg-gray-50
+                                                      transition">
+
+                                                Biaya Pembatalan
+
+                                            </a>
+
+                                        @endrole
+
+
                                         <form method="POST"
                                               action="{{ route('logout') }}">
 
@@ -943,6 +974,37 @@
                               text-sm font-bold">
 
                         Properti Disimpan
+
+                    </a>
+
+                @endrole
+
+
+                @role('super_admin')
+
+                    <div class="my-2 border-t border-gray-100"></div>
+
+                    <div class="px-2 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                        Super Admin
+                    </div>
+
+                    <a href="{{ route('admin.settings.edit') }}"
+                       class="block px-2 py-3
+                              rounded-lg
+                              hover:bg-gray-50
+                              text-sm font-bold">
+
+                        Pengaturan Platform
+
+                    </a>
+
+                    <a href="{{ route('admin.settings.cancellation-fees.edit') }}"
+                       class="block px-2 py-3
+                              rounded-lg
+                              hover:bg-gray-50
+                              text-sm font-bold">
+
+                        Biaya Pembatalan
 
                     </a>
 

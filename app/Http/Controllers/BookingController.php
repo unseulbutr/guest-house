@@ -894,18 +894,19 @@ class BookingController extends Controller
             |--------------------------------------------------------------------------
             */
 
-            if ($daysBeforeCheckIn >= 7) {
-                $cancellationPercentage = 0;
-            } elseif ($daysBeforeCheckIn >= 3) {
-                $cancellationPercentage = 5;
-            } elseif ($daysBeforeCheckIn === 2) {
-                $cancellationPercentage = 10;
-            } elseif ($daysBeforeCheckIn === 1) {
-                $cancellationPercentage = 15;
-            } else {
-                // Hari H, tetapi masih sebelum waktu check-in.
-                $cancellationPercentage = 20;
-            }
+           $settings = Setting::current();
+
+if ($daysBeforeCheckIn >= 7) {
+    $cancellationPercentage = (float) $settings->cancellation_fee_h7;
+} elseif ($daysBeforeCheckIn >= 3) {
+    $cancellationPercentage = (float) $settings->cancellation_fee_h3;
+} elseif ($daysBeforeCheckIn === 2) {
+    $cancellationPercentage = (float) $settings->cancellation_fee_h2;
+} elseif ($daysBeforeCheckIn === 1) {
+    $cancellationPercentage = (float) $settings->cancellation_fee_h1;
+} else {
+    $cancellationPercentage = (float) $settings->cancellation_fee_same_day;
+}
 
             /*
             |--------------------------------------------------------------------------

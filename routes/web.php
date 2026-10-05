@@ -11,6 +11,7 @@ use App\Http\Controllers\PropertyReviewController;
 use App\Http\Controllers\SavedPropertyController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\CancellationFeeController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -507,6 +508,18 @@ Route::middleware([
             [SettingController::class, 'update']
         )->name('update');
     });
+
+    Route::middleware(['auth'])->group(function () {
+    Route::get(
+        '/admin/settings/cancellation-fees',
+        [CancellationFeeController::class, 'edit']
+    )->name('admin.settings.cancellation-fees.edit');
+
+    Route::put(
+        '/admin/settings/cancellation-fees',
+        [CancellationFeeController::class, 'update']
+    )->name('admin.settings.cancellation-fees.update');
+});
 });
 
 
