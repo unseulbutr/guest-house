@@ -100,6 +100,23 @@
         ?? null;
 @endphp
 
+@if(
+    in_array(
+        $booking->payment_status,
+        ['dp_paid', 'paid', 'refunded'],
+        true
+    )
+)
+
+    <a
+        href="{{ route('bookings.invoice', $booking) }}"
+        class="luxury-button gold-button"
+        target="_blank"
+    >
+        🧾 Lihat Invoice
+    </a>
+
+@endif
 
 <style>
     /* =========================================================

@@ -7,9 +7,14 @@ use App\Models\Property;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\MitraFinanceService;
 
 class BookingController extends Controller
 {
+    public function __construct(
+        protected MitraFinanceService $mitraFinance
+    ) {
+    }
     /*
     |--------------------------------------------------------------------------
     | INDEX
@@ -73,6 +78,33 @@ class BookingController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | FILTER STATUS BOOKING
+        |--------------------------------------------------------------------------
+        |
+        | Filter berlaku untuk kalender, jumlah booking bulanan, dan
+        | daftar booking pada tanggal yang dipilih.
+        |
+        */
+
+        $statusFilter = $request->input('status', 'all');
+
+        $allowedStatuses = [
+            'pending',
+            'confirmed',
+            'cancelled',
+            'completed',
+        ];
+
+        if (
+            $statusFilter !== 'all'
+            &&
+            !in_array($statusFilter, $allowedStatuses, true)
+        ) {
+            $statusFilter = 'all';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | BASE QUERY SESUAI ROLE
         |--------------------------------------------------------------------------
         |
@@ -110,6 +142,19 @@ class BookingController extends Controller
                         $user->id
                     );
                 }
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | APPLY FILTER STATUS
+        |--------------------------------------------------------------------------
+        */
+
+        if ($statusFilter !== 'all') {
+            $baseQuery->where(
+                'status',
+                $statusFilter
             );
         }
 
@@ -234,7 +279,8 @@ class BookingController extends Controller
                 'selectedDate',
                 'calendarStart',
                 'calendarEnd',
-                'totalMonthlyBookings'
+                'totalMonthlyBookings',
+                'statusFilter'
             )
         );
     }
@@ -894,19 +940,18 @@ class BookingController extends Controller
             |--------------------------------------------------------------------------
             */
 
-           $settings = Setting::current();
-
-if ($daysBeforeCheckIn >= 7) {
-    $cancellationPercentage = (float) $settings->cancellation_fee_h7;
-} elseif ($daysBeforeCheckIn >= 3) {
-    $cancellationPercentage = (float) $settings->cancellation_fee_h3;
-} elseif ($daysBeforeCheckIn === 2) {
-    $cancellationPercentage = (float) $settings->cancellation_fee_h2;
-} elseif ($daysBeforeCheckIn === 1) {
-    $cancellationPercentage = (float) $settings->cancellation_fee_h1;
-} else {
-    $cancellationPercentage = (float) $settings->cancellation_fee_same_day;
-}
+            if ($daysBeforeCheckIn >= 7) {
+                $cancellationPercentage = 0;
+            } elseif ($daysBeforeCheckIn >= 3) {
+                $cancellationPercentage = 5;
+            } elseif ($daysBeforeCheckIn === 2) {
+                $cancellationPercentage = 10;
+            } elseif ($daysBeforeCheckIn === 1) {
+                $cancellationPercentage = 15;
+            } else {
+                // Hari H, tetapi masih sebelum waktu check-in.
+                $cancellationPercentage = 20;
+            }
 
             /*
             |--------------------------------------------------------------------------
@@ -1055,6 +1100,12 @@ if ($daysBeforeCheckIn >= 7) {
             }
         }
 
+        $refundTransactionId =
+            'REFUND-' .
+            strtoupper(
+                uniqid()
+            );
+
         $booking->update([
             'payment_status' => 'refunded',
 
@@ -1064,13 +1115,15 @@ if ($daysBeforeCheckIn >= 7) {
                 $refundAmount,
 
             'refund_transaction_id' =>
-                'REFUND-' .
-                strtoupper(
-                    uniqid()
-                ),
+                $refundTransactionId,
 
             'refunded_at' => now(),
         ]);
+
+        $this->mitraFinance->reverseBookingEarnings(
+            $booking->fresh('property'),
+            'Koreksi pendapatan karena refund booking ' . $booking->booking_code . '.'
+        );
 
         return back()->with(
             'success',
@@ -1197,6 +1250,8 @@ if ($daysBeforeCheckIn >= 7) {
                 2
             );
 
+            $transactionId = $request->input('transaction_id');
+
             $booking->update([
                 'payment_status' => 'dp_paid',
 
@@ -1222,10 +1277,15 @@ if ($daysBeforeCheckIn >= 7) {
                     ),
 
                 'qris_transaction_id' =>
-                    $request->input(
-                        'transaction_id'
-                    ),
+                    $transactionId,
             ]);
+
+            $this->mitraFinance->recordPaymentEarning(
+                $booking->fresh('property'),
+                'dp',
+                $dpAmount,
+                $transactionId
+            );
 
             return response()->json([
                 'message' =>
@@ -1267,6 +1327,18 @@ if ($daysBeforeCheckIn >= 7) {
                 'Pelunasan harus diselesaikan sebelum tanggal check-in.'
             );
 
+            $settlementAmount = (float) (
+                $booking->remaining_amount
+                ??
+                max(
+                    (float) $booking->total_price -
+                    (float) ($booking->dp_amount ?? 0),
+                    0
+                )
+            );
+
+            $transactionId = $request->input('transaction_id');
+
             $booking->update([
                 'payment_status' => 'paid',
 
@@ -1277,10 +1349,15 @@ if ($daysBeforeCheckIn >= 7) {
                     now(),
 
                 'qris_transaction_id' =>
-                    $request->input(
-                        'transaction_id'
-                    ),
+                    $transactionId,
             ]);
+
+            $this->mitraFinance->recordPaymentEarning(
+                $booking->fresh('property'),
+                'settlement',
+                $settlementAmount,
+                $transactionId
+            );
 
             return response()->json([
                 'message' =>
@@ -1297,6 +1374,8 @@ if ($daysBeforeCheckIn >= 7) {
         |
         */
 
+        $transactionId = $request->input('transaction_id');
+
         $booking->update([
             'payment_status' => 'paid',
 
@@ -1312,10 +1391,15 @@ if ($daysBeforeCheckIn >= 7) {
                 ),
 
             'qris_transaction_id' =>
-                $request->input(
-                    'transaction_id'
-                ),
+                $transactionId,
         ]);
+
+        $this->mitraFinance->recordPaymentEarning(
+            $booking->fresh('property'),
+            'full',
+            (float) $booking->total_price,
+            $transactionId
+        );
 
         return response()->json([
             'message' =>
@@ -1369,6 +1453,12 @@ if ($daysBeforeCheckIn >= 7) {
             )
                 ->startOfDay();
 
+        $transactionId =
+            'DP-SIMULATED-' .
+            strtoupper(
+                uniqid()
+            );
+
         $booking->update([
             'payment_status' => 'dp_paid',
 
@@ -1390,11 +1480,15 @@ if ($daysBeforeCheckIn >= 7) {
                 ),
 
             'qris_transaction_id' =>
-                'DP-SIMULATED-' .
-                strtoupper(
-                    uniqid()
-                ),
+                $transactionId,
         ]);
+
+        $this->mitraFinance->recordPaymentEarning(
+            $booking->fresh('property'),
+            'dp',
+            $dpAmount,
+            $transactionId
+        );
 
         $message =
             $booking->property->management_type === 'dikelola'
@@ -1476,6 +1570,22 @@ if ($daysBeforeCheckIn >= 7) {
             'Pelunasan harus diselesaikan sebelum tanggal check-in.'
         );
 
+        $settlementAmount = (float) (
+            $booking->remaining_amount
+            ??
+            max(
+                (float) $booking->total_price -
+                (float) ($booking->dp_amount ?? 0),
+                0
+            )
+        );
+
+        $transactionId =
+            'SETTLEMENT-SIMULATED-' .
+            strtoupper(
+                uniqid()
+            );
+
         $booking->update([
             'payment_status' => 'paid',
 
@@ -1486,11 +1596,15 @@ if ($daysBeforeCheckIn >= 7) {
                 now(),
 
             'qris_transaction_id' =>
-                'SETTLEMENT-SIMULATED-' .
-                strtoupper(
-                    uniqid()
-                ),
+                $transactionId,
         ]);
+
+        $this->mitraFinance->recordPaymentEarning(
+            $booking->fresh('property'),
+            'settlement',
+            $settlementAmount,
+            $transactionId
+        );
 
         return back()->with(
             'success',

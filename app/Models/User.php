@@ -10,6 +10,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
+    
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
@@ -53,4 +54,12 @@ class User extends Authenticatable
         return $this->belongsToMany(Property::class, 'saved_properties', 'customer_id', 'property_id')
             ->withTimestamps();
     }
+
+    /**
+ * Pengajuan verifikasi menjadi Mitra.
+ */
+public function mitraVerification()
+{
+    return $this->hasOne(MitraVerification::class);
+}
 }

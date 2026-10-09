@@ -200,6 +200,67 @@
 
 
         {{-- ================================================= --}}
+        {{-- FILTER STATUS --}}
+        {{-- ================================================= --}}
+
+        <div class="booking-card p-5 md:p-6 mb-6">
+
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">
+                        Filter Booking
+                    </p>
+
+                    <h2 class="text-base font-extrabold text-slate-900">
+                        Tampilkan berdasarkan status
+                    </h2>
+
+                    <p class="text-xs text-gray-500 mt-1">
+                        Filter ini berlaku untuk kalender dan daftar reservasi.
+                    </p>
+                </div>
+
+                <form method="GET" action="{{ url()->current() }}" class="flex flex-col sm:flex-row sm:items-center gap-3">
+
+                    <input type="hidden" name="month" value="{{ $month->format('Y-m') }}">
+                    <input type="hidden" name="date" value="{{ $selectedDate->format('Y-m-d') }}">
+
+                    <label for="booking-status-filter" class="text-xs font-bold text-gray-500">
+                        Status
+                    </label>
+
+                    <select
+                        id="booking-status-filter"
+                        name="status"
+                        onchange="this.form.submit()"
+                        class="min-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    >
+                        <option value="all" @selected($statusFilter === 'all')>
+                            Semua Status
+                        </option>
+                        <option value="pending" @selected($statusFilter === 'pending')>
+                            Menunggu Konfirmasi
+                        </option>
+                        <option value="confirmed" @selected($statusFilter === 'confirmed')>
+                            Dikonfirmasi
+                        </option>
+                        <option value="cancelled" @selected($statusFilter === 'cancelled')>
+                            Dibatalkan
+                        </option>
+                        <option value="completed" @selected($statusFilter === 'completed')>
+                            Selesai
+                        </option>
+                    </select>
+
+                </form>
+
+            </div>
+
+        </div>
+
+
+        {{-- ================================================= --}}
         {{-- MAIN GRID --}}
         {{-- ================================================= --}}
 
@@ -273,7 +334,9 @@
                                         $month->copy()
                                             ->subMonth()
                                             ->startOfMonth()
-                                            ->format('Y-m-d')
+                                            ->format('Y-m-d'),
+
+                                    'status' => $statusFilter
                                 ]
                             ) }}"
                             class="
@@ -301,7 +364,8 @@
                                 request()->route()->getName(),
                                 [
                                     'month' => now()->format('Y-m'),
-                                    'date' => now()->format('Y-m-d')
+                                    'date' => now()->format('Y-m-d'),
+                                    'status' => $statusFilter
                                 ]
                             ) }}"
                             class="
@@ -339,7 +403,9 @@
                                         $month->copy()
                                             ->addMonth()
                                             ->startOfMonth()
-                                            ->format('Y-m-d')
+                                            ->format('Y-m-d'),
+
+                                    'status' => $statusFilter
                                 ]
                             ) }}"
                             class="
@@ -493,7 +559,8 @@
                                 request()->route()->getName(),
                                 [
                                     'month' => $month->format('Y-m'),
-                                    'date' => $dateKey
+                                    'date' => $dateKey,
+                                    'status' => $statusFilter
                                 ]
                             ) }}"
                             class="{{ $dayClasses }}"
@@ -746,7 +813,19 @@
                             max-w-sm
                             mx-auto
                         ">
-                            Tidak ada reservasi aktif pada tanggal
+                            Tidak ada reservasi
+                            @if ($statusFilter === 'all')
+                                aktif
+                            @elseif ($statusFilter === 'pending')
+                                yang menunggu konfirmasi
+                            @elseif ($statusFilter === 'confirmed')
+                                yang sudah dikonfirmasi
+                            @elseif ($statusFilter === 'cancelled')
+                                yang dibatalkan
+                            @elseif ($statusFilter === 'completed')
+                                yang sudah selesai
+                            @endif
+                            pada tanggal
                             {{ $selectedDate->translatedFormat('d F Y') }}.
                         </p>
 

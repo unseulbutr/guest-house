@@ -12,8 +12,13 @@ use App\Http\Controllers\SavedPropertyController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\CancellationFeeController;
+use App\Http\Controllers\MitraFinanceController;
+use App\Http\Controllers\AdminFinanceController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\MitraRegistrationController;
+use App\Http\Controllers\MitraVerificationController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -55,6 +60,63 @@ Route::get(
     '/artikel/{slug}',
     [ArticleController::class, 'show']
 )->name('articles.show');
+
+
+// ============================================================
+// PENDAFTARAN MITRA - PUBLIC
+// ============================================================
+//
+// Guest:
+//
+// /daftar/mitra
+//      ↓
+// Landing Mitra
+//      ↓
+// /daftar/mitra/form
+//      ↓
+// Form Pendaftaran Mitra
+//      ↓
+// Data akun + identitas + selfie
+//      ↓
+// Kirim
+//      ↓
+// Akun dibuat sebagai CUSTOMER sementara
+//      ↓
+// Menunggu Verifikasi
+//      ↓
+// Admin / Super Admin
+//      ↓
+// APPROVE
+//      ↓
+// Role berubah menjadi MITRA
+//      ↓
+// Dashboard Mitra
+//
+// Tidak perlu membuat properti saat daftar.
+//
+// ============================================================
+
+
+// LANDING MITRA
+// LANDING MITRA PUBLIC
+Route::get(
+    '/daftar/mitra',
+    [MitraRegistrationController::class, 'landing']
+)->name('mitra.landing');
+
+
+// FORM MITRA PUBLIC
+Route::get(
+    '/daftar/mitra/form',
+    [MitraRegistrationController::class, 'create']
+)->name('mitra.register');
+
+
+// PROSES PENDAFTARAN MITRA
+Route::post(
+    '/daftar/mitra',
+    [MitraRegistrationController::class, 'store']
+)->name('mitra.register.store');
 
 
 // ============================================================
@@ -106,24 +168,111 @@ Route::middleware([
     // ========================================================
 
     Route::get(
-        'profile',
+        '/profile',
         [ProfileController::class, 'edit']
     )->name('profile.edit');
 
     Route::patch(
-        'profile',
+        '/profile',
         [ProfileController::class, 'update']
     )->name('profile.update');
 
     Route::put(
-        'profile/password',
+        '/profile/password',
         [ProfileController::class, 'updatePassword']
     )->name('profile.password');
 
     Route::delete(
-        'profile',
+        '/profile',
         [ProfileController::class, 'destroy']
     )->name('profile.destroy');
+
+
+    // ========================================================
+    // INVOICE / BUKTI PEMBAYARAN
+    // ========================================================
+
+    Route::get(
+        '/bookings/{booking}/invoice',
+        [InvoiceController::class, 'show']
+    )->name('bookings.invoice');
+
+
+    // ========================================================
+    // STATUS PENGAJUAN MITRA
+    // ========================================================
+    //
+    // Bisa digunakan oleh customer yang sedang menunggu.
+    // Setelah disetujui, controller akan mengarahkan
+    // user ke dashboard Mitra.
+    //
+    // ========================================================
+
+    Route::get(
+        '/mitra/status',
+        [MitraRegistrationController::class, 'status']
+    )->name('mitra.apply.status');
+
+
+    // ========================================================
+    // CUSTOMER MENGAJUKAN MENJADI MITRA
+    // ========================================================
+    //
+    // Customer yang sudah memiliki akun:
+    //
+    // Customer
+    //    ↓
+    // Landing Mitra
+    //    ↓
+    // Form Mitra
+    //    ↓
+    // Upload Identitas
+    //    ↓
+    // Selfie
+    //    ↓
+    // Kirim
+    //    ↓
+    // Menunggu Verifikasi
+    //    ↓
+    // Approve
+    //    ↓
+    // Role menjadi Mitra
+    //
+    // ========================================================
+
+    Route::middleware([
+        'role:customer',
+    ])->group(function () {
+
+        // ----------------------------------------------------
+        // LANDING MITRA
+        // ----------------------------------------------------
+
+        Route::get(
+            '/mitra/daftar',
+            [MitraRegistrationController::class, 'landing']
+        )->name('mitra.apply');
+
+
+        // ----------------------------------------------------
+        // FORM MITRA
+        // ----------------------------------------------------
+
+        Route::get(
+            '/mitra/daftar/form',
+            [MitraRegistrationController::class, 'create']
+        )->name('mitra.apply.form');
+
+
+        // ----------------------------------------------------
+        // KIRIM PENGAJUAN MITRA
+        // ----------------------------------------------------
+
+        Route::post(
+            '/mitra/daftar',
+            [MitraRegistrationController::class, 'store']
+        )->name('mitra.apply.store');
+    });
 
 
     // ========================================================
@@ -136,6 +285,10 @@ Route::middleware([
     ->prefix('customer')
     ->name('customer.')
     ->group(function () {
+
+        // ----------------------------------------------------
+        // BOOKING
+        // ----------------------------------------------------
 
         Route::get(
             'bookings',
@@ -173,9 +326,9 @@ Route::middleware([
         )->name('bookings.simulate-pay');
 
         Route::patch(
-    'bookings/{booking}/simulate-settlement',
-    [BookingController::class, 'simulateSettlement']
-)->name('bookings.simulate-settlement');
+            'bookings/{booking}/simulate-settlement',
+            [BookingController::class, 'simulateSettlement']
+        )->name('bookings.simulate-settlement');
 
 
         // ====================================================
@@ -235,6 +388,10 @@ Route::middleware([
     ->name('mitra.')
     ->group(function () {
 
+        // ----------------------------------------------------
+        // PROPERTI MITRA
+        // ----------------------------------------------------
+
         Route::get(
             'properties',
             [PropertyController::class, 'mitraIndex']
@@ -277,6 +434,21 @@ Route::middleware([
             'bookings/{booking}/reject',
             [BookingController::class, 'reject']
         )->name('bookings.reject');
+
+
+        // ====================================================
+        // KEUANGAN MITRA
+        // ====================================================
+
+        Route::get(
+            'finance',
+            [MitraFinanceController::class, 'index']
+        )->name('finance.index');
+
+        Route::post(
+            'finance/withdraw',
+            [MitraFinanceController::class, 'withdraw']
+        )->name('finance.withdraw');
 
 
         // ====================================================
@@ -352,6 +524,36 @@ Route::middleware([
 
 
         // ====================================================
+        // VERIFIKASI MITRA
+        // ====================================================
+
+        Route::get(
+            'mitra-verifications',
+            [MitraVerificationController::class, 'index']
+        )->name('mitra-verifications.index');
+
+        Route::get(
+            'mitra-verifications/{verification}',
+            [MitraVerificationController::class, 'show']
+        )->name('mitra-verifications.show');
+
+        Route::patch(
+            'mitra-verifications/{verification}/approve',
+            [MitraVerificationController::class, 'approve']
+        )->name('mitra-verifications.approve');
+
+        Route::patch(
+            'mitra-verifications/{verification}/reject',
+            [MitraVerificationController::class, 'reject']
+        )->name('mitra-verifications.reject');
+
+        Route::get(
+            'mitra-verifications/{verification}/document/{type}',
+            [MitraVerificationController::class, 'document']
+        )->name('admin.mitra-verifications.document');
+
+
+        // ====================================================
         // FACILITIES
         // ====================================================
 
@@ -422,6 +624,39 @@ Route::middleware([
 
 
     // ========================================================
+    // SUPER ADMIN - KEUANGAN
+    // ========================================================
+
+    Route::middleware([
+        'role:super_admin',
+    ])
+    ->prefix('admin/finance')
+    ->name('admin.finance.')
+    ->group(function () {
+
+        Route::get(
+            '/',
+            [AdminFinanceController::class, 'index']
+        )->name('index');
+
+        Route::patch(
+            '/withdrawals/{withdrawal}/approve',
+            [AdminFinanceController::class, 'approveWithdrawal']
+        )->name('withdrawals.approve');
+
+        Route::patch(
+            '/withdrawals/{withdrawal}/paid',
+            [AdminFinanceController::class, 'markAsPaid']
+        )->name('withdrawals.paid');
+
+        Route::patch(
+            '/withdrawals/{withdrawal}/reject',
+            [AdminFinanceController::class, 'rejectWithdrawal']
+        )->name('withdrawals.reject');
+    });
+
+
+    // ========================================================
     // SUPER ADMIN - FACILITIES
     // ========================================================
 
@@ -480,15 +715,13 @@ Route::middleware([
             [UserController::class, 'update']
         )->name('update');
 
-        Route::patch(
-            '/{user}/toggle-active',
-            [UserController::class, 'toggle-active']
-        )->name('toggle-active');
+        Route::patch('/{user}/toggle-active', [UserController::class, 'toggleActive'])
+    ->name('toggle-active');
     });
 
 
     // ========================================================
-    // SUPER ADMIN - SETTINGS
+    // SUPER ADMIN - PLATFORM SETTINGS
     // ========================================================
 
     Route::middleware([
@@ -509,17 +742,29 @@ Route::middleware([
         )->name('update');
     });
 
-    Route::middleware(['auth'])->group(function () {
-    Route::get(
-        '/admin/settings/cancellation-fees',
-        [CancellationFeeController::class, 'edit']
-    )->name('admin.settings.cancellation-fees.edit');
 
-    Route::put(
-        '/admin/settings/cancellation-fees',
-        [CancellationFeeController::class, 'update']
-    )->name('admin.settings.cancellation-fees.update');
-});
+    // ========================================================
+    // SUPER ADMIN - CANCELLATION FEES
+    // ========================================================
+
+    Route::middleware([
+        'role:super_admin',
+    ])
+    ->prefix('admin/settings')
+    ->name('admin.settings.')
+    ->group(function () {
+
+        Route::get(
+            '/cancellation-fees',
+            [CancellationFeeController::class, 'edit']
+        )->name('cancellation-fees.edit');
+
+        Route::put(
+            '/cancellation-fees',
+            [CancellationFeeController::class, 'update']
+        )->name('cancellation-fees.update');
+    });
+
 });
 
 

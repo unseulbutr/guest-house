@@ -417,6 +417,21 @@
                                         @endrole
 
 
+                                        @role('mitra')
+
+                                            <a href="{{ route('mitra.finance.index') }}"
+                                               class="block px-4 py-3
+                                                      text-sm font-semibold
+                                                      hover:bg-gray-50
+                                                      transition">
+
+                                                Keuangan
+
+                                            </a>
+
+                                        @endrole
+
+
                                         @role('super_admin')
 
                                             <div class="my-2 border-t border-gray-100"></div>
@@ -432,6 +447,16 @@
                                                       transition">
 
                                                 Pengaturan Platform
+
+                                            </a>
+
+                                            <a href="{{ route('admin.finance.index') }}"
+                                               class="block px-4 py-3
+                                                      text-sm font-semibold
+                                                      hover:bg-gray-50
+                                                      transition">
+
+                                                Keuangan
 
                                             </a>
 
@@ -980,6 +1005,21 @@
                 @endrole
 
 
+                @role('mitra')
+
+                    <a href="{{ route('mitra.finance.index') }}"
+                       class="block px-2 py-3
+                              rounded-lg
+                              hover:bg-gray-50
+                              text-sm font-bold">
+
+                        Keuangan
+
+                    </a>
+
+                @endrole
+
+
                 @role('super_admin')
 
                     <div class="my-2 border-t border-gray-100"></div>
@@ -995,6 +1035,16 @@
                               text-sm font-bold">
 
                         Pengaturan Platform
+
+                    </a>
+
+                    <a href="{{ route('admin.finance.index') }}"
+                       class="block px-2 py-3
+                              rounded-lg
+                              hover:bg-gray-50
+                              text-sm font-bold">
+
+                        Keuangan
 
                     </a>
 
